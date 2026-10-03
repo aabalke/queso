@@ -2,6 +2,7 @@ package arm32
 
 import (
 	"fmt"
+	"math/bits"
 )
 
 var shifts = [4]string{"lsl", "lsr", "asr", "ror"}
@@ -25,7 +26,7 @@ var cond = [16]string{
 	"nv",
 }
 
-var rawReg = [16]string{
+var rawRegs = [16]string{
 	"r0",
 	"r1",
 	"r2",
@@ -87,6 +88,7 @@ type Decoder int
 const (
 	INST_SVC Decoder = iota
 	INST_BKP
+	INST_COP
 	INST_BRA
 	INST_BRX
 	INST_UND
@@ -94,6 +96,8 @@ const (
 	INST_HWM
 	INST_CLZ
 	INST_QAL
+	INST_MRS
+	INST_MSR
 	INST_SWP
 	INST_BLK
 	INST_HAL
@@ -127,6 +131,9 @@ var format32 = [MAX_DECODER32_CNT]Formatter{
 	INST_ALU:           {0x0E00_0000, 0x0200_0000},
 	INST_ALU_SHIFT_REG: {0x0E00_0090, 0x0000_0010},
 	INST_ALU_SHIFT_IMM: {0x0E00_0010, 0x0000_0000},
+	INST_COP:           {0x0F00_0010, 0x0E00_0010},
+	INST_MRS:           {0x0FBF_0FFF, 0x010F_0000},
+	INST_MSR:           {0x0DB0_F000, 0x0120_F000},
 }
 
 var decoders32 = [MAX_DECODER32_CNT]func(op uint32) string{
@@ -310,7 +317,7 @@ var decoders32 = [MAX_DECODER32_CNT]func(op uint32) string{
 
 		for i := range 16 {
 			if op&(1<<i) != 0 {
-				rlist += rawReg[i]
+				rlist += rawRegs[i]
 
 				if op&0xFFFF >= 1<<(i+1) {
 					rlist += ", "
@@ -455,10 +462,6 @@ var decoders32 = [MAX_DECODER32_CNT]func(op uint32) string{
 		return fmt.Sprintf("%s%s%s r%d, %s", mnemonic, t, cond[op>>28], rd, addr)
 	},
 
-	INST_ALU: func(op uint32) string {
-		return "alu"
-	},
-
 	INST_ALU_SHIFT_REG: func(op uint32) string {
 		inst := (op >> 21) & 0xF
 		sType := (op >> 5) & 3
@@ -531,5 +534,72 @@ var decoders32 = [MAX_DECODER32_CNT]func(op uint32) string{
 		}
 
 		return fmt.Sprintf("%s%s%s %s", aluOps[inst], s, cond[op>>28], operands)
+	},
+
+	INST_ALU: func(op uint32) string {
+		// TODO: ALU IMM
+		return "alu"
+	},
+
+	INST_COP: func(op uint32) string {
+		var (
+			opc = (op >> 21) & 7
+			cn  = (op >> 16) & 0xF
+			rd  = (op >> 12) & 0xF
+			pn  = (op >> 8) & 0xF
+			cp  = (op >> 5) & 7
+			cm  = (op >> 0) & 0xF
+		)
+
+		mnemonic := ""
+		if m2 := op>>28 == 0xF; m2 {
+			if op&(1<<20) != 0 {
+				mnemonic += "mrc2"
+			} else {
+				mnemonic += "mcr2"
+			}
+		} else {
+			if op&(1<<20) != 0 {
+				mnemonic += "mrc" + cond[op>>28]
+			} else {
+				mnemonic += "mcr" + cond[op>>28]
+			}
+		}
+
+		mnemonic += fmt.Sprintf(" p%d, #0x%X, r%d, c%d, c%d", pn, opc, rd, cn, cm)
+
+		if cp != 0 {
+			mnemonic += fmt.Sprintf(", #0x%X", cp)
+		}
+
+		return mnemonic
+	},
+
+	INST_MRS: func(op uint32) string {
+		rd := (op >> 12) & 0xF
+
+		if spsr := (op>>22)&1 != 0; spsr {
+			return fmt.Sprintf("mrs%s r%d, spsr", cond[op>>28], rd)
+		} else {
+			return fmt.Sprintf("mrs%s r%d, cpsr", cond[op>>28], rd)
+		}
+	},
+
+	INST_MSR: func(op uint32) string {
+		operand := ""
+		if imm := (op>>25)&1 != 0; imm {
+			v := ((op >> 8) & 0xF) << 1
+			v = bits.RotateLeft32(op&0xFF, int(v))
+			operand = fmt.Sprintf("#0x%X", v)
+
+		} else {
+			operand = fmt.Sprintf("r%d", op&0xF)
+		}
+
+		if spsr := (op>>22)&1 != 0; spsr {
+			return fmt.Sprintf("msr%s spsr, %s", cond[op>>28], operand)
+		} else {
+			return fmt.Sprintf("msr%s cpsr, %s", cond[op>>28], operand)
+		}
 	},
 }

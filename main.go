@@ -22,7 +22,9 @@ func main() {
 		insts = append(insts, uint32(v))
 	}
 
-	isa := arm32.Arm32{}
+	isa := arm32.Arm32{
+		Thumb: true,
+	}
 
 	asms := isa.Decode(insts)
 

@@ -1,6 +1,8 @@
 package arm32
 
-import "math/bits"
+import (
+	"math/bits"
+)
 
 type Arm32 struct {
 	Thumb                 bool
@@ -12,20 +14,33 @@ type Arm32 struct {
 
 func (isa *Arm32) Decode(v []uint32) []string {
 	if !isa.BigEndian {
-		for i := range len(v) {
-			v[i] = bits.ReverseBytes32(v[i])
+		if isa.Thumb {
+			for i := range len(v) {
+				v[i] = uint32(bits.ReverseBytes16(uint16(v[i])))
+			}
+		} else {
+			for i := range len(v) {
+				v[i] = bits.ReverseBytes32(v[i])
+			}
 		}
 	}
 
 	var s []string
-	for i := range v {
-		s = append(s, isa.decodeInstruction(v[i]))
+
+	if isa.Thumb {
+		for i := range v {
+			s = append(s, isa.decodeInstruction16(v[i]))
+		}
+	} else {
+		for i := range v {
+			s = append(s, isa.decodeInstruction32(v[i]))
+		}
 	}
 
 	return s
 }
 
-func (isa *Arm32) decodeInstruction(v uint32) string {
+func (isa *Arm32) decodeInstruction32(v uint32) string {
 	decoder := INST_UNKNOWN
 	for i, desc := range format32 {
 		if (v & desc.mask) == desc.match {
@@ -35,4 +50,16 @@ func (isa *Arm32) decodeInstruction(v uint32) string {
 	}
 
 	return decoders32[decoder](v)
+}
+
+func (isa *Arm32) decodeInstruction16(v uint32) string {
+	decoder := INST_THUMB_UNKNOWN
+	for i, desc := range format16 {
+		if (v & desc.mask) == desc.match {
+			decoder = Decoder(i)
+			break
+		}
+	}
+
+	return decoders16[decoder](uint16(v))
 }

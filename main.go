@@ -1,34 +1,25 @@
 package main
 
 import (
+	"encoding/binary"
 	"fmt"
-	"os"
-	"strconv"
 
 	"edisa/isa/arm32"
 )
 
 func main() {
-	args := os.Args[1:]
-
-	var insts []uint32
-
-	for _, s := range args {
-		v, err := strconv.ParseUint(s, 16, 32)
-		if err != nil {
-			panic(err)
-		}
-
-		insts = append(insts, uint32(v))
-	}
+	args := NewArgsUint32()
 
 	isa := arm32.Arm32{
-		Thumb: true,
+		Order:          binary.LittleEndian,
+		Thumb:          false,
+		RegisterNaming: arm32.GeneralNaming,
+		BlockSuffixes:  arm32.StackBlockSuffixes,
 	}
 
-	asms := isa.Decode(insts)
+	asms := isa.Decode(args)
 
 	for i := range asms {
-		fmt.Printf("OP %08X: %s\n", insts[i], asms[i])
+		fmt.Printf("%s\n", asms[i])
 	}
 }

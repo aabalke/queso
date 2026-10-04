@@ -1,39 +1,43 @@
 package arm32
 
 import (
-	"math/bits"
+	"encoding/binary"
+	"io"
 )
 
 type Arm32 struct {
-	Thumb                 bool
-	BigEndian             bool
-	ConventionNaming      bool // pc instad of r15
-	StackOrientedSuffixes bool // ldm / stm ldmia vs ldmed
-	HexImmediateValues    bool // #0xF, #15
+	Order              binary.ByteOrder
+	RegisterNaming     RegisterNaming
+	BlockSuffixes      BlockSuffixes
+	Thumb              bool
+	HexImmediateValues bool // #0xF, #15
 }
 
-func (isa *Arm32) Decode(v []uint32) []string {
-	if !isa.BigEndian {
-		if isa.Thumb {
-			for i := range len(v) {
-				v[i] = uint32(bits.ReverseBytes16(uint16(v[i])))
-			}
-		} else {
-			for i := range len(v) {
-				v[i] = bits.ReverseBytes32(v[i])
-			}
-		}
-	}
-
+func (isa *Arm32) Decode(r io.Reader) []string {
 	var s []string
 
+	bs, err := io.ReadAll(r)
+	if err != nil {
+		panic(err)
+	}
+
+	w := 4
 	if isa.Thumb {
-		for i := range v {
-			s = append(s, isa.decodeInstruction16(v[i]))
+		w = 2
+	}
+
+	for i := 0; i < len(bs); i += w {
+
+		if i+w > len(bs) {
+			break
 		}
-	} else {
-		for i := range v {
-			s = append(s, isa.decodeInstruction32(v[i]))
+
+		if !isa.Thumb {
+			v := isa.Order.Uint32(bs[i:])
+			s = append(s, isa.decodeInstruction32(v))
+		} else {
+			v := uint32(isa.Order.Uint16(bs[i:]))
+			s = append(s, isa.decodeInstruction16(v))
 		}
 	}
 
@@ -49,7 +53,7 @@ func (isa *Arm32) decodeInstruction32(v uint32) string {
 		}
 	}
 
-	return decoders32[decoder](v)
+	return decoders32[decoder](isa, v)
 }
 
 func (isa *Arm32) decodeInstruction16(v uint32) string {
@@ -61,5 +65,5 @@ func (isa *Arm32) decodeInstruction16(v uint32) string {
 		}
 	}
 
-	return decoders16[decoder](uint16(v))
+	return decoders16[decoder](isa, uint16(v))
 }

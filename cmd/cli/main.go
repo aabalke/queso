@@ -23,7 +23,7 @@ func main() {
 	w := 4
 
 	isa := queso.Isa{
-		Order:              binary.BigEndian,
+		Order:              binary.LittleEndian,
 		Thumb:              w == 2,
 		RegisterNaming:     queso.ConventionNaming,
 		BlockSuffixes:      queso.StandardBlockSuffixes,
@@ -40,7 +40,7 @@ func main() {
 		EndProfiler()
 	}
 
-	for i := range asms {
+	for i := range asms[:16] {
 		fmt.Printf("%08X: %s\n", i*w, asms[i])
 	}
 }

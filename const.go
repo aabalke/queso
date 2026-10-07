@@ -44,7 +44,7 @@ var ConventionNaming = RegisterNaming{
 	"r7",
 	"r8",
 	"r9",
-	"r10",
+	"sl",
 	"fp",
 	"ip",
 	"sp",
@@ -56,7 +56,7 @@ type BlockSuffixes [2][4]string
 
 var StandardBlockSuffixes = BlockSuffixes{
 	{"da", "ia", "db", "ib"},
-	{"da", "ia", "db", "ib"},
+	{"da", "", "db", "ib"},
 }
 
 var StackBlockSuffixes = BlockSuffixes{
@@ -81,7 +81,7 @@ func appendImm(dst []byte, v int, base HexImmediateBase) []byte {
 			u = uint64(-v)
 		} else {
 			if v >= 10 {
-				dst = append(dst, "0-x"...)
+				dst = append(dst, "0x"...)
 			}
 		}
 
@@ -114,8 +114,8 @@ func appendHex(dst []byte, v uint64) []byte {
 var cond = [16]string{
 	"eq",
 	"ne",
-	"hs",
-	"lo",
+	"cs",
+	"cc",
 	"mi",
 	"pl",
 	"vs",
@@ -134,5 +134,13 @@ func appendCond(b []byte, c uint32) []byte {
 	if c != 0xE {
 		b = append(b, cond[c]...)
 	}
+	return b
+}
+
+func appendAddr(b []byte, addr, ofs int) []byte {
+	addr += ofs
+
+	b = append(b, "0x"...)
+	b = appendHex(b, uint64(uint32(addr)))
 	return b
 }

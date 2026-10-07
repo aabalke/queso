@@ -12,6 +12,7 @@ type Isa struct {
 	RegisterNaming     RegisterNaming
 	BlockSuffixes      BlockSuffixes
 	ImmediateValueBase HexImmediateBase
+	UndefinedOutput    string
 	Thumb              bool
 }
 
@@ -24,15 +25,15 @@ func (isa *Isa) Decode(r io.Reader) []string {
 	w := 4
 	unknown := INST_UNKNOWN
 	formatters := formatters32
-	decoderFunc := func(isa *Isa, decoder Decoder, op uint32, b []byte) []byte {
-		return decoders32[decoder](isa, op, b)
+	decoderFunc := func(b []byte, isa *Isa, decoder Decoder, op uint32, addr int) []byte {
+		return decoders32[decoder](b, isa, op, addr)
 	}
 	if isa.Thumb {
 		w = 2
 		unknown = INST_THUMB_UNKNOWN
 		formatters = formatters16
-		decoderFunc = func(isa *Isa, decoder Decoder, op uint32, b []byte) []byte {
-			return decoders16[decoder](isa, uint16(op), b)
+		decoderFunc = func(b []byte, isa *Isa, decoder Decoder, op uint32, addr int) []byte {
+			return decoders16[decoder](b, isa, uint16(op), addr)
 		}
 	}
 
@@ -64,7 +65,7 @@ func (isa *Isa) Decode(r io.Reader) []string {
 			}
 		}
 
-		buf = decoderFunc(isa, decoder, v, buf)
+		buf = decoderFunc(buf, isa, decoder, v, i*w)
 		ends[i] = uint32(len(buf))
 	}
 

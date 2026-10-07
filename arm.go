@@ -28,10 +28,16 @@ var aluOpsArm = [16]string{
 
 const (
 	INST_SVC Decoder = iota
+	INST_EXT
 	INST_BKP
 	INST_COP
 	INST_BRA
 	INST_BRX
+	INST_SAT
+	INST_SAT16
+	INST_USA
+	INST_PACK
+	INST_REV
 	INST_SDT
 	INST_BLK
 	INST_MUL
@@ -46,6 +52,7 @@ const (
 	INST_ALU_SHIFT_IMM
 	INST_CLZ
 	INST_QAL
+	INST_CDP
 	INST_UNKNOWN
 	MAX_DECODER32_CNT
 )
@@ -70,9 +77,16 @@ var formatters32 = []Formatter{
 	INST_COP:           {0x0F00_0010, 0x0E00_0010},
 	INST_MRS:           {0x0FBF_0FFF, 0x010F_0000},
 	INST_MSR:           {0x0DB0_F000, 0x0120_F000},
+	INST_CDP:           {0x0F00_0010, 0x0E00_0000},
+	INST_EXT:           {0x0F80_03F0, 0x0680_0070},
+	INST_SAT:           {0x0FA0_0030, 0x06A0_0010},
+	INST_SAT16:         {0x0FA0_0FF0, 0x06A0_0F30},
+	INST_USA:           {0x0FF0_00F0, 0x0780_0010},
+	INST_PACK:          {0x0FF0_0000, 0x0680_0000},
+	INST_REV:           {0x0FBF_0F70, 0x06BF_0F30},
 }
 
-var decoders32 = [MAX_DECODER32_CNT]func(isa *Isa, op uint32, b []byte) []byte{
+var decoders32 = [MAX_DECODER32_CNT]func(b []byte, isa *Isa, op uint32, addr int) []byte{
 	INST_UNKNOWN:       unknown,
 	INST_SVC:           svc,
 	INST_BKP:           bkpt,
@@ -93,38 +107,50 @@ var decoders32 = [MAX_DECODER32_CNT]func(isa *Isa, op uint32, b []byte) []byte{
 	INST_COP:           cop,
 	INST_MRS:           mrs,
 	INST_MSR:           msr,
+	INST_CDP:           cdp,
+	INST_EXT:           ext,
+	INST_SAT:           sat,
+	INST_SAT16:         sat16,
+	INST_USA:           usad,
+	INST_PACK:          pack,
+	INST_REV:           rev,
 }
 
-func unknown(isa *Isa, op uint32, b []byte) []byte {
-	b = append(b, "unknown"...)
+func unknown(b []byte, isa *Isa, op uint32, addr int) []byte {
+	b = append(b, isa.UndefinedOutput...)
 	return b
 }
 
-func svc(isa *Isa, op uint32, b []byte) []byte {
+func svc(b []byte, isa *Isa, op uint32, addr int) []byte {
 	b = append(b, "svc"...)
 	b = appendCond(b, op>>28)
-	b = append(b, ' ')
-	b = appendImm(b, int(op&0xFF_FFFF), isa.ImmediateValueBase)
+	b = append(b, " 0x00000000"...)
+	c := strconv.AppendUint([]byte{}, uint64(op&0xFFFFFF), 16)
+	b = append(b[:len(b)-len(c)], c[:]...)
+
+	//b = appendHex(b, uint64(uint32(op&0xFFFFFF)))
+	//b = strconv.AppendUint(b, uint64(op&0xFFFFFF), 10)
+	//b = appendImm(b, int(op&0xFF_FFFF), isa.ImmediateValueBase)
 	return b
 }
 
-func bkpt(isa *Isa, op uint32, b []byte) []byte {
+func bkpt(b []byte, isa *Isa, op uint32, addr int) []byte {
 	b = append(b, "bkpt "...)
 	b = appendImm(b, int((op&0xF)|(((op>>8)&0xFFF)<<4)), isa.ImmediateValueBase)
 	return b
 }
 
-func und(isa *Isa, op uint32, b []byte) []byte {
+func und(b []byte, isa *Isa, op uint32, addr int) []byte {
 	b = append(b, "undefined"...)
 	return b
 }
 
-func br(isa *Isa, op uint32, b []byte) []byte {
-	nn := ((int32(op) << 8) >> 6) + 8
+func br(b []byte, isa *Isa, op uint32, addr int) []byte {
+	nn := int((int32(op)<<8)>>6) + 8
 
 	switch {
 	case op>>28 == 0xF:
-		nn += int32((op>>24)&1) * 2
+		nn += int((op>>24)&1) * 2
 		b = append(b, "blx "...)
 	case op&(1<<24) != 0:
 		b = append(b, "bl"...)
@@ -136,11 +162,11 @@ func br(isa *Isa, op uint32, b []byte) []byte {
 		b = append(b, ' ')
 	}
 
-	b = appendImm(b, int(nn), isa.ImmediateValueBase)
+	b = appendAddr(b, addr, nn)
 	return b
 }
 
-func bx(isa *Isa, op uint32, b []byte) []byte {
+func bx(b []byte, isa *Isa, op uint32, addr int) []byte {
 	rn := isa.RegisterNaming[op&0xF]
 
 	switch inst := (op >> 4) & 0xF; inst {
@@ -173,7 +199,7 @@ var mulOps = []string{
 	"smlal",
 }
 
-func mul(isa *Isa, op uint32, b []byte) []byte {
+func mul(b []byte, isa *Isa, op uint32, addr int) []byte {
 	rd := isa.RegisterNaming[(op>>16)&0xF]
 	rn := isa.RegisterNaming[(op>>12)&0xF]
 	rs := isa.RegisterNaming[(op>>8)&0xF]
@@ -228,7 +254,7 @@ var hwmOps = []string{
 	"smul",
 }
 
-func hwm(isa *Isa, op uint32, b []byte) []byte {
+func hwm(b []byte, isa *Isa, op uint32, addr int) []byte {
 	rd := isa.RegisterNaming[(op>>16)&0xF]
 	rn := isa.RegisterNaming[(op>>12)&0xF]
 	rs := isa.RegisterNaming[(op>>8)&0xF]
@@ -286,7 +312,7 @@ func hwm(isa *Isa, op uint32, b []byte) []byte {
 
 var qaluOps = []string{"qadd", "qsub", "qdadd", "qdsub"}
 
-func qalu(isa *Isa, op uint32, b []byte) []byte {
+func qalu(b []byte, isa *Isa, op uint32, addr int) []byte {
 	rn := isa.RegisterNaming[(op>>16)&0xF]
 	rd := isa.RegisterNaming[(op>>12)&0xF]
 	rm := isa.RegisterNaming[(op>>0)&0xF]
@@ -309,7 +335,7 @@ func qalu(isa *Isa, op uint32, b []byte) []byte {
 	return b
 }
 
-func clz(isa *Isa, op uint32, b []byte) []byte {
+func clz(b []byte, isa *Isa, op uint32, addr int) []byte {
 	rd := isa.RegisterNaming[(op>>12)&0xF]
 	rm := isa.RegisterNaming[op&0xF]
 
@@ -323,7 +349,7 @@ func clz(isa *Isa, op uint32, b []byte) []byte {
 	return b
 }
 
-func swp(isa *Isa, op uint32, b []byte) []byte {
+func swp(b []byte, isa *Isa, op uint32, addr int) []byte {
 	rn := isa.RegisterNaming[(op>>16)&0xF]
 	rd := isa.RegisterNaming[(op>>12)&0xF]
 	rm := isa.RegisterNaming[(op>>0)&0xF]
@@ -345,7 +371,7 @@ func swp(isa *Isa, op uint32, b []byte) []byte {
 	return b
 }
 
-func blk(isa *Isa, op uint32, b []byte) []byte {
+func blk(b []byte, isa *Isa, op uint32, addr int) []byte {
 	if op&(1<<20) != 0 {
 		b = append(b, "ldm"...)
 	} else {
@@ -384,7 +410,7 @@ func blk(isa *Isa, op uint32, b []byte) []byte {
 	return b
 }
 
-func half(isa *Isa, op uint32, b []byte) []byte {
+func half(b []byte, isa *Isa, op uint32, addr int) []byte {
 	rn := isa.RegisterNaming[(op>>16)&0xF]
 	rd := isa.RegisterNaming[(op>>12)&0xF]
 	pre := (op>>24)&1 != 0
@@ -410,7 +436,7 @@ func half(isa *Isa, op uint32, b []byte) []byte {
 		case 1:
 			b = append(b, "ldrh"...)
 		case 2:
-			b = append(b, "strh"...)
+			b = append(b, "ldrsb"...)
 		case 3:
 			b = append(b, "ldrsh"...)
 		}
@@ -460,7 +486,7 @@ func half(isa *Isa, op uint32, b []byte) []byte {
 	return b
 }
 
-func sdt(isa *Isa, op uint32, b []byte) []byte {
+func sdt(b []byte, isa *Isa, op uint32, addr int) []byte {
 	pre := (op>>24)&1 != 0
 	rn := isa.RegisterNaming[(op>>16)&0xF]
 	rd := isa.RegisterNaming[(op>>12)&0xF]
@@ -543,92 +569,105 @@ func sdt(isa *Isa, op uint32, b []byte) []byte {
 	return b
 }
 
-func aluShiftReg(isa *Isa, op uint32, b []byte) []byte {
-	b = append(b, "alu"...)
+func aluShiftReg(b []byte, isa *Isa, op uint32, addr int) []byte {
+	rm := isa.RegisterNaming[op&0xF]
+	rs := isa.RegisterNaming[(op>>8)&0xF]
+	sType := (op >> 5) & 3
+	shift := shifts[sType]
+
+	b = appendAluPre(b, isa, op, addr)
+
+	b = append(b, rm...)
+	b = append(b, ", "...)
+	b = append(b, shift...)
+	b = append(b, " "...)
+	b = append(b, rs...)
 	return b
-	//inst := (op >> 21) & 0xF
-	//sType := (op >> 5) & 3
-	//rn := isa.RegisterNaming[(op>>16)&0xF]
-	//rd := isa.RegisterNaming[(op>>12)&0xF]
-	//rs := isa.RegisterNaming[(op>>8)&0xF]
-	//rm := isa.RegisterNaming[op&0xF]
-
-	//s := ""
-	//if op&(1<<20) != 0 && (inst < 8 || inst >= 0xC) {
-	//	s = "s"
-	//}
-
-	//operands := ""
-
-	//switch {
-	//case inst < 8 || inst == 0xC || inst == 0xE:
-	//	operands = fmt.Sprintf("%s, %s, %s, %s %s", rd, rn, rm, shifts[sType], rs)
-	//case inst < 0xC:
-	//	operands = fmt.Sprintf("%s, %s, %s %s", rn, rm, shifts[sType], rs)
-	//case inst == 0xD:
-	//	return fmt.Sprintf("%s%s%s %s, %s, %s", shifts[sType], s, cond[op>>28], rd, rm, rs)
-	//default:
-	//	operands = fmt.Sprintf("%s, %s, %s %s", rd, rm, shifts[sType], rs)
-	//}
-
-	//return fmt.Sprintf("%s%s%s %s", aluOpsArm[inst], s, cond[op>>28], operands)
 }
 
-func aluShiftImm(isa *Isa, op uint32, b []byte) []byte {
-	b = append(b, "alu"...)
+func aluShiftImm(b []byte, isa *Isa, op uint32, addr int) []byte {
+	rm := isa.RegisterNaming[op&0xF]
+	sType := (op >> 5) & 3
+	is := (op >> 7) & 0x1F
+
+	b = appendAluPre(b, isa, op, addr)
+
+	b = append(b, rm...)
+	b = append(b, ", "...)
+
+	shift := shifts[sType]
+	if is == 0 {
+		switch sType {
+		case 0:
+		case 1, 2:
+			b = append(b, shift...)
+			b = append(b, " #32"...)
+		case 3:
+			b = append(b, "rrx #1"...)
+		}
+	} else {
+		b = append(b, shift...)
+		b = append(b, " #"...)
+		b = strconv.AppendUint(b, uint64(is), 10)
+	}
+
 	return b
 	//// TODO: NOP (MOV r0, r0)
 	//// TODO: shifts with mov are lsl, lsr, asr, and ror (rrx) separately
-
-	//inst := (op >> 21) & 0xF
-	//sType := (op >> 5) & 3
-	//rn := isa.RegisterNaming[(op>>16)&0xF]
-	//rd := isa.RegisterNaming[(op>>12)&0xF]
-	//rm := isa.RegisterNaming[op&0xF]
-	//is := (op >> 7) & 0x1F
-
-	//s := ""
-	//if op&(1<<20) != 0 && inst < 8 && inst >= 0xC {
-	//	s = "s"
-	//}
-
-	//op2 := ""
-
-	//shift := shifts[sType]
-	//if is == 0 {
-	//	switch sType {
-	//	case 0:
-	//	case 1, 2:
-	//		op2 = fmt.Sprintf("%s #0x%X", shift, 32)
-	//	case 3:
-	//		op2 = "rrx #0x1"
-	//	}
-	//} else {
-	//	op2 = fmt.Sprintf("%s #0x%X", shift, is)
-	//}
-
-	//operands := ""
-
-	//switch {
-	//case inst < 8 || inst == 0xC || inst == 0xE:
-	//	operands = fmt.Sprintf("%s, %s, %s, %s", rd, rn, rm, op2)
-	//case inst < 0xC:
-	//	operands = fmt.Sprintf("%s, %s, %s", rn, rm, op2)
-	//default:
-	//	operands = fmt.Sprintf("%s, %s, %s", rd, rm, op2)
-	//}
-
-	//return fmt.Sprintf("%s%s%s %s", aluOpsArm[inst], s, cond[op>>28], operands)
 }
 
-func alu(isa *Isa, op uint32, b []byte) []byte {
-	b = append(b, "alu"...)
+func appendAluPre(b []byte, isa *Isa, op uint32, addr int) []byte {
+	inst := (op >> 21) & 0xF
+	logical := inst >= 8 && inst < 0xC
+	b = append(b, aluOpsArm[inst]...)
+	b = appendCond(b, op>>28)
+	if op&(1<<20) != 0 && !logical {
+		b = append(b, "s"...)
+	}
+
+	b = append(b, " "...)
+
+	rd := (op >> 12) & 0xF
+	rn := (op >> 16) & 0xF
+
+	if !logical {
+		b = append(b, isa.RegisterNaming[rd]...)
+		b = append(b, ", "...)
+	}
+
+	if inst != 0xD && inst != 0xF {
+		b = append(b, isa.RegisterNaming[rn]...)
+		b = append(b, ", "...)
+	}
+
 	return b
-	//// TODO: ALU IMM
-	//return "alu"
 }
 
-func cop(isa *Isa, op uint32, b []byte) []byte {
+func alu(b []byte, isa *Isa, op uint32, addr int) []byte {
+	b = appendAluPre(b, isa, op, addr)
+	b = append(b, "#"...)
+
+	// TODO: what decides imm full vs nn, ror rot?
+	ror := (int((op>>8)&0xF) * 2)
+	if useRor := false; useRor {
+
+		b = strconv.AppendUint(b, uint64(op&0xFF), 10)
+
+		if ror != 0 {
+			b = append(b, ", "...)
+			b = strconv.AppendUint(b, uint64(ror), 10)
+		}
+
+	} else {
+		nn := bits.RotateLeft32(op&0xFF, -ror)
+		b = strconv.AppendUint(b, uint64(nn), 10)
+
+	}
+
+	return b
+}
+
+func cop(b []byte, isa *Isa, op uint32, addr int) []byte {
 	var (
 		opc = (op >> 21) & 7
 		cn  = (op >> 16) & 0xF
@@ -640,34 +679,34 @@ func cop(isa *Isa, op uint32, b []byte) []byte {
 
 	if m2 := op>>28 == 0xF; m2 {
 		if op&(1<<20) != 0 {
-			b = append(b, "mrc2"...)
+			b = append(b, "mrc2 "...)
 		} else {
-			b = append(b, "mcr2"...)
+			b = append(b, "mcr2 "...)
 		}
 	} else {
 		if op&(1<<20) != 0 {
-			b = append(b, "mrc"...)
+			b = append(b, "mrc "...)
 			b = appendCond(b, op>>28)
 		} else {
-			b = append(b, "mcr"...)
+			b = append(b, "mcr "...)
 			b = appendCond(b, op>>28)
 		}
 	}
 
-	b = append(b, " p"...)
 	b = strconv.AppendUint(b, uint64(pn), 10)
 	b = append(b, ", "...)
-	b = appendImm(b, int(opc), isa.ImmediateValueBase)
+	b = strconv.AppendUint(b, uint64(opc), 10)
 	b = append(b, ", "...)
 	b = append(b, rd...)
-	b = append(b, ", c"...)
+	b = append(b, ", cr"...)
 	b = strconv.AppendUint(b, uint64(cn), 10)
-	b = append(b, ", c"...)
+	b = append(b, ", cr"...)
 	b = strconv.AppendUint(b, uint64(cm), 10)
 
 	if cp != 0 {
-		b = append(b, ", "...)
-		b = appendImm(b, int(cp), isa.ImmediateValueBase)
+		b = append(b, ", {"...)
+		b = strconv.AppendUint(b, uint64(cp), 10)
+		b = append(b, "}"...)
 	}
 
 	return b
@@ -678,7 +717,7 @@ var psrs = []string{
 	"spsr",
 }
 
-func mrs(isa *Isa, op uint32, b []byte) []byte {
+func mrs(b []byte, isa *Isa, op uint32, addr int) []byte {
 	rd := isa.RegisterNaming[(op>>12)&0xF]
 	b = append(b, "mrs"...)
 	b = appendCond(b, op>>28)
@@ -689,7 +728,7 @@ func mrs(isa *Isa, op uint32, b []byte) []byte {
 	return b
 }
 
-func msr(isa *Isa, op uint32, b []byte) []byte {
+func msr(b []byte, isa *Isa, op uint32, addr int) []byte {
 	b = append(b, "msr"...)
 	b = appendCond(b, op>>28)
 	b = append(b, " "...)
@@ -703,5 +742,251 @@ func msr(isa *Isa, op uint32, b []byte) []byte {
 	} else {
 		b = append(b, isa.RegisterNaming[op&0xF]...)
 	}
+	return b
+}
+
+func cdp(b []byte, isa *Isa, op uint32, addr int) []byte {
+	if cond := op >> 28; cond == 0xF {
+		b = append(b, "cdp2"...)
+	} else {
+		b = append(b, "cdp"...)
+		b = appendCond(b, op>>28)
+	}
+
+	b = append(b, " "...)
+
+	rm := (op >> 0) & 0xF
+	opc2 := (op >> 5) & 7
+	coproc := (op >> 8) & 0xF
+	rd := (op >> 12) & 0xF
+	rn := (op >> 16) & 0xF
+	opc1 := (op >> 20) & 0xF
+
+	b = strconv.AppendUint(b, uint64(coproc), 10)
+	b = append(b, ", "...)
+	b = strconv.AppendUint(b, uint64(opc1), 10)
+	b = append(b, ", cr"...)
+	b = strconv.AppendUint(b, uint64(rd), 10)
+	b = append(b, ", cr"...)
+	b = strconv.AppendUint(b, uint64(rn), 10)
+	b = append(b, ", cr"...)
+	b = strconv.AppendUint(b, uint64(rm), 10)
+	b = append(b, ", {"...)
+	b = strconv.AppendUint(b, uint64(opc2), 10)
+	b = append(b, "}"...)
+
+	return b
+}
+
+func ext(b []byte, isa *Isa, op uint32, addr int) []byte {
+	rn := (op >> 16) & 0xF
+	rd := (op >> 12) & 0xF
+	rm := (op >> 0) & 0xF
+	ror := (op >> 10) & 3
+	opc := (op >> 20) & 7
+
+	if rn == 0xF {
+		switch opc {
+		case 0:
+			b = append(b, "sxtb16"...)
+		case 2:
+			b = append(b, "sxtb"...)
+		case 3:
+			b = append(b, "sxth"...)
+		case 4:
+			b = append(b, "uxtb16"...)
+		case 6:
+			b = append(b, "uxtb"...)
+		case 7:
+			b = append(b, "uxth"...)
+		}
+	} else {
+		switch opc {
+		case 0:
+			b = append(b, "sxtab16"...)
+		case 2:
+			b = append(b, "sxtab"...)
+		case 3:
+			b = append(b, "sxtah"...)
+		case 4:
+			b = append(b, "uxtab16"...)
+		case 6:
+			b = append(b, "uxtab"...)
+		case 7:
+			b = append(b, "uxtah"...)
+		}
+	}
+
+	b = appendCond(b, op>>28)
+	b = append(b, " "...)
+	b = append(b, isa.RegisterNaming[rd]...)
+	b = append(b, ", "...)
+
+	if rn != 0xF {
+		b = append(b, isa.RegisterNaming[rn]...)
+		b = append(b, ", "...)
+	}
+
+	b = append(b, isa.RegisterNaming[rm]...)
+
+	if ror == 0 {
+		return b
+	}
+
+	b = append(b, ", ror #"...)
+
+	switch ror {
+	case 1:
+		b = append(b, "8"...)
+	case 2:
+		b = append(b, "16"...)
+	case 3:
+		b = append(b, "24"...)
+	}
+
+	return b
+}
+
+func sat(b []byte, isa *Isa, op uint32, addr int) []byte {
+	immediate := (op >> 16) & 0x1F
+	if op&(1<<22) != 0 {
+		b = append(b, "usat"...)
+	} else {
+		immediate++
+		b = append(b, "ssat"...)
+	}
+
+	b = appendCond(b, op>>28)
+	b = append(b, " "...)
+	b = append(b, isa.RegisterNaming[(op>>12)&0xF]...)
+	b = append(b, ", #"...)
+	b = strconv.AppendUint(b, uint64(immediate), 10)
+	b = append(b, ", "...)
+	b = append(b, isa.RegisterNaming[op&0xF]...)
+
+	if (op>>6)&0x3F == 0 {
+		return b
+	}
+
+	b = append(b, ", "...)
+	imm := (op >> 7) & 0x1F
+
+	if op&(1<<6) != 0 {
+		b = append(b, "asr #"...)
+		b = strconv.AppendUint(b, uint64(imm), 10)
+	} else {
+		b = append(b, "lsl #"...)
+		b = strconv.AppendUint(b, uint64(imm), 10)
+	}
+
+	return b
+}
+
+func sat16(b []byte, isa *Isa, op uint32, addr int) []byte {
+	immediate := (op >> 16) & 0xF
+	if op&(1<<22) != 0 {
+		b = append(b, "usat16"...)
+	} else {
+		immediate++
+		b = append(b, "ssat16"...)
+	}
+
+	b = appendCond(b, op>>28)
+	b = append(b, " "...)
+	b = append(b, isa.RegisterNaming[(op>>12)&0xF]...)
+	b = append(b, ", #"...)
+	b = strconv.AppendUint(b, uint64(immediate), 10)
+	b = append(b, ", "...)
+	b = append(b, isa.RegisterNaming[op&0xF]...)
+	return b
+}
+
+func usad(b []byte, isa *Isa, op uint32, addr int) []byte {
+	rd := (op >> 16) & 0xF
+	rn := (op >> 12) & 0xF
+	rs := (op >> 8) & 0xF
+	rm := (op >> 0) & 0xF
+
+	if rn == 0xF {
+		b = append(b, "usad8"...)
+	} else {
+		b = append(b, "usada8"...)
+	}
+
+	b = appendCond(b, op>>28)
+	b = append(b, " "...)
+	b = append(b, isa.RegisterNaming[rd]...)
+	b = append(b, ", "...)
+	b = append(b, isa.RegisterNaming[rm]...)
+	b = append(b, ", "...)
+	b = append(b, isa.RegisterNaming[rs]...)
+
+	if rn != 0xF {
+		b = append(b, ", "...)
+		b = append(b, isa.RegisterNaming[rn]...)
+	}
+
+	return b
+}
+
+func pack(b []byte, isa *Isa, op uint32, addr int) []byte {
+	rn := (op >> 16) & 0xF
+	rd := (op >> 12) & 0xF
+	rm := (op >> 0) & 0xF
+
+	switch (op >> 4) & 7 {
+	case 0b001:
+		b = append(b, "pkhbt"...)
+	case 0b101:
+		b = append(b, "pkhtb"...)
+	}
+
+	b = appendCond(b, op>>28)
+	b = append(b, " "...)
+	b = append(b, isa.RegisterNaming[rd]...)
+	b = append(b, ", "...)
+	b = append(b, isa.RegisterNaming[rn]...)
+	b = append(b, ", "...)
+	b = append(b, isa.RegisterNaming[rm]...)
+
+	imm := (op >> 7) & 0x1F
+
+	if imm != 0 {
+		b = append(b, ", "...)
+		switch (op >> 4) & 7 {
+		case 0b001:
+			b = append(b, "lsl #"...)
+		case 0b101:
+			b = append(b, "asr #"...)
+		}
+
+		b = strconv.AppendUint(b, uint64(imm), 10)
+	}
+
+	return b
+}
+
+func rev(b []byte, isa *Isa, op uint32, addr int) []byte {
+	opc := (((op >> 22) & 1) << 1) | ((op >> 7) & 1)
+
+	rd := (op >> 12) & 0xF
+	rm := (op >> 0) & 0xF
+
+	switch opc {
+	case 0:
+		b = append(b, "rev"...)
+	case 1:
+		b = append(b, "rev16"...)
+	case 2:
+		b = append(b, "revsh"...)
+	}
+
+	b = appendCond(b, op>>28)
+
+	b = append(b, " "...)
+	b = append(b, isa.RegisterNaming[rd]...)
+	b = append(b, ", "...)
+	b = append(b, isa.RegisterNaming[rm]...)
+
 	return b
 }

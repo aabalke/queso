@@ -26,7 +26,6 @@ func main() {
 		Order:              binary.LittleEndian,
 		Thumb:              w == 2,
 		RegisterNaming:     queso.ConventionNaming,
-		BlockSuffixes:      queso.StandardBlockSuffixes,
 		ImmediateValueBase: queso.HEX_BASE,
 	}
 

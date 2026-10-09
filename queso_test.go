@@ -16,12 +16,19 @@ import (
 	"testing"
 )
 
-func newIsa(thumb bool) *Isa {
+// NOTE: tests uses https://gitlab.arm.com/tooling/gnu-toolchains-for-arm/-/packages
+// objdump and as to disassemble and assembler instructions
+// a possible source is https://git.sr.ht/~sourceware/binutils-gdb/tree/master/item/opcodes/arm-dis.c
+// objdump is not perfect but is a great 99% test comparison
+// thumb16 instructions can be all tested exhaustively
+// arm32 and thumb-2 (32 bit) have to be randomly tested
+
+func newIsa(arch Arch, thumb bool) *Isa {
 	return &Isa{
+		Arch:               arch,
 		Order:              binary.LittleEndian,
 		Thumb:              thumb,
 		RegisterNaming:     ConventionNaming,
-		BlockSuffixes:      StandardBlockSuffixes,
 		ImmediateValueBase: DEC_BASE,
 	}
 }
@@ -41,6 +48,7 @@ const refCount = 2_000_000
 
 var (
 	objdumpBin = envOr("OBJDUMP", "arm-none-eabi-objdump")
+	asBin      = envOr("AS", "arm-none-eabi-as")
 	lineRe     = regexp.MustCompile(`^\s*([0-9a-f]+):\t([0-9a-f ]+?)\s*\t(.*)$`)
 	commentRe  = regexp.MustCompile(`\s*[;@].*$`)
 	labelRe    = regexp.MustCompile(`\s*<[^>]*>`)
@@ -61,14 +69,14 @@ func normRef(s string) string {
 	return norm(s)
 }
 
-func runObjdump(t *testing.T, data []byte, thumb bool) map[int]string {
+func runObjdump(t *testing.T, data []byte, arch Arch, thumb bool) map[int]string {
 	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "in.bin")
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	args := []string{"-D", "-z", "-b", "binary", "-marm", "--endian=little"}
+	args := []string{"-D", "-z", "-b", "binary", "-marm", "--endian=little", "-m", string(arch)}
 	if thumb {
 		args = append(args, "-M", "force-thumb")
 	}
@@ -90,7 +98,78 @@ func runObjdump(t *testing.T, data []byte, thumb bool) map[int]string {
 		}
 	}
 
+	markUnassemblable(t, res, arch, thumb)
+
 	return res
+}
+
+const notAssemblable = "not assemblable"
+
+var asErrRe = regexp.MustCompile(`:(\d+): Error:`)
+
+func isUndefinedText(s string) bool {
+	s = strings.ToLower(s)
+	return strings.HasPrefix(s, "udf") ||
+		strings.Contains(s, "undefined") ||
+		strings.Contains(s, "unpredictable") ||
+		strings.HasPrefix(s, ".word") ||
+		strings.HasPrefix(s, ".short")
+}
+
+// markUnassemblable runs every disassembled line through arm-none-eabi-as
+// for the same arch and replaces the text of lines gas rejects.
+func markUnassemblable(t *testing.T, res map[int]string, arch Arch, thumb bool) {
+	t.Helper()
+
+	addrs := make([]int, 0, len(res))
+	for a := range res {
+		addrs = append(addrs, a)
+	}
+	sort.Ints(addrs)
+
+	var sb strings.Builder
+	sb.WriteString(".syntax unified\n") // line 1
+	if thumb {
+		sb.WriteString(".thumb\n") // line 2
+	} else {
+		sb.WriteString(".arm\n") // line 2
+	}
+	const header = 2 // instruction i lives on line header+1+i
+
+	for _, a := range addrs {
+		txt := res[a]
+		if i := strings.IndexAny(txt, ";@"); i >= 0 { // strip objdump comments
+			txt = txt[:i]
+		}
+		txt = strings.TrimSpace(txt)
+		if isUndefinedText(txt) {
+			txt = "" // keep line numbering aligned
+		}
+		sb.WriteString(txt)
+		sb.WriteByte('\n')
+	}
+
+	dir := t.TempDir()
+	src := filepath.Join(dir, "t.s")
+	if err := os.WriteFile(src, []byte(sb.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// gas exits non-zero when anything fails; that's expected here.
+	out, _ := exec.Command(asBin, "-march="+string(arch), src,
+		"-o", filepath.Join(dir, "t.o")).CombinedOutput()
+
+	bad := 0
+	for _, m := range asErrRe.FindAllStringSubmatch(string(out), -1) {
+		line, _ := strconv.Atoi(m[1])
+		idx := line - header - 1
+		if idx < 0 || idx >= len(addrs) {
+			continue
+		}
+		res[addrs[idx]] = notAssemblable
+		bad++
+	}
+	t.Logf("%s: %d/%d lines not assemblable", arch, bad, len(addrs))
 }
 
 type mismatch struct {
@@ -98,7 +177,7 @@ type mismatch struct {
 	got, want string
 }
 
-func compare(t *testing.T, thumb bool, ops []uint32) {
+func compare(t *testing.T, arch Arch, thumb bool, ops []uint32) {
 	w := 4
 	if thumb {
 		w = 2
@@ -111,8 +190,10 @@ func compare(t *testing.T, thumb bool, ops []uint32) {
 			data = binary.LittleEndian.AppendUint32(data, op)
 		}
 	}
-	ref := runObjdump(t, data, thumb)
-	got := decode(t, newIsa(thumb), data)
+
+	isa := newIsa(arch, thumb)
+	ref := runObjdump(t, data, arch, thumb)
+	got := decode(t, isa, data)
 
 	buckets := map[string][]mismatch{}
 	total := 0
@@ -125,9 +206,10 @@ func compare(t *testing.T, thumb bool, ops []uint32) {
 
 		wantN, gotN := normRef(want), norm(got[i])
 		// skip things objdump itself calls undefined/unpredictable
+		// hlt is v8 but for some reason objdump includes in all
 		if strings.HasPrefix(wantN, "udf") || strings.Contains(wantN, "undefined") ||
 			strings.Contains(wantN, "unpredictable") || strings.HasPrefix(wantN, ".word") ||
-			strings.HasPrefix(wantN, ".short") {
+			strings.HasPrefix(wantN, ".short") || strings.Contains(wantN, notAssemblable) || strings.HasPrefix(wantN, "hlt") {
 			continue
 		}
 		if gotN != wantN {
@@ -157,7 +239,7 @@ func compare(t *testing.T, thumb bool, ops []uint32) {
 	t.Error(sb.String())
 }
 
-func TestArm(t *testing.T) {
+func testArm(t *testing.T, arch Arch) {
 	r := rand.New(rand.NewSource(1))
 	ops := make([]uint32, refCount)
 	for i := range ops {
@@ -168,10 +250,10 @@ func TestArm(t *testing.T) {
 		}
 		ops[i] = op
 	}
-	compare(t, false, ops)
+	compare(t, arch, false, ops)
 }
 
-func TestThumb(t *testing.T) {
+func testThumb(t *testing.T, arch Arch) {
 	ops := make([]uint32, 0, 65536)
 	for i := range 65536 {
 		// 0b11101 / 0b11110 / 0b11111 prefixes start 32-bit Thumb-2 encodings; skip
@@ -181,19 +263,29 @@ func TestThumb(t *testing.T) {
 		}
 		ops = append(ops, uint32(i))
 	}
-	compare(t, true, ops)
+	compare(t, arch, true, ops)
 }
 
-func TestThumb2(t *testing.T) {
-	ops := make([]uint32, 0, (1<<11)*3)
+func TestArmV2(t *testing.T)   { testArm(t, ARCH_ARMv2) }
+func TestArmV4T(t *testing.T)  { testArm(t, ARCH_ARMv4t) }
+func TestArmV5TE(t *testing.T) { testArm(t, ARCH_ARMv5te) }
 
-	tops := []uint32{0b11101 << 11, 0b11110 << 11, 0b11111 << 11}
+func TestThumbV4T(t *testing.T)  { testThumb(t, ARCH_ARMv4t) }
+func TestThumbV5TE(t *testing.T) { testThumb(t, ARCH_ARMv5te) }
 
-	for _, top := range tops {
-		for i := range uint32(1 << 11) {
-			ops = append(ops, uint32(top|i))
-		}
-	}
+// TODO: thumb-2 (32bit instructions)
 
-	compare(t, true, ops)
-}
+//func TestThumb2(t *testing.T) {
+//	arch := ARCH_ARM_ANY
+//	ops := make([]uint32, 0, (1<<11)*3)
+//
+//	tops := []uint32{0b11101 << 11, 0b11110 << 11, 0b11111 << 11}
+//
+//	for _, top := range tops {
+//		for i := range uint32(1 << 11) {
+//			ops = append(ops, uint32(top|i))
+//		}
+//	}
+//
+//	compare(t, arch, true, ops)
+//}

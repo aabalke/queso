@@ -52,18 +52,6 @@ var ConventionNaming = RegisterNaming{
 	"pc",
 }
 
-type BlockSuffixes [2][4]string
-
-var StandardBlockSuffixes = BlockSuffixes{
-	{"da", "ia", "db", "ib"},
-	{"da", "", "db", "ib"},
-}
-
-var StackBlockSuffixes = BlockSuffixes{
-	{"ed", "ea", "fd", "ed"},
-	{"ea", "fd", "fa", "ed"},
-}
-
 type Decoder int
 
 type Formatter struct {

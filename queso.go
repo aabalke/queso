@@ -7,10 +7,44 @@ import (
 	"unsafe"
 )
 
+type Arch string
+
+const (
+	// ARCH_ARM     Arch = "arm"
+	ARCH_ARMv2 Arch = "armv2"
+	// ARCH_ARMv2a  Arch = "armv2a"
+	// ARCH_ARMv3   Arch = "armv3"
+	// ARCH_ARMv3m  Arch = "armv3m"
+	// ARCH_ARMv4   Arch = "armv4"
+	ARCH_ARMv4t Arch = "armv4t"
+	// ARCH_ARMv5   Arch = "armv5"
+	// ARCH_ARMv5t  Arch = "armv5t"
+	ARCH_ARMv5te Arch = "armv5te"
+	// "xscale"
+	// "ep9312"
+	// "iwmmxt"
+	// "iwmmxt2"
+	// "armv5tej"
+	// "armv6"
+	// "armv6kz"
+	// "armv6t2"
+	// "armv6k"
+	// "armv7"
+	// "armv6-m"
+	// "armv6s-m"
+	// "armv7e-m"
+	// "armv8-a"
+	// "armv8-r"
+	// "armv8-m.base"
+	// "armv8-m.main"
+	// "armv8.1-m.main"
+	ARCH_ARM_ANY Arch = "arm_any"
+)
+
 type Isa struct {
+	Arch               Arch
 	Order              binary.ByteOrder
 	RegisterNaming     RegisterNaming
-	BlockSuffixes      BlockSuffixes
 	ImmediateValueBase HexImmediateBase
 	UndefinedOutput    string
 	Thumb              bool
@@ -22,18 +56,42 @@ func (isa *Isa) Decode(r io.Reader) []string {
 		panic(err)
 	}
 
-	w := 4
-	unknown := INST_UNKNOWN
-	formatters := formatters32
-	decoderFunc := func(b []byte, isa *Isa, decoder Decoder, op uint32, addr int) []byte {
-		return decoders32[decoder](b, isa, op, addr)
-	}
+	var (
+		w           int
+		unknown     Decoder
+		formatters  []Formatter
+		decoderFunc func(b []byte, isa *Isa, decoder Decoder, op uint32, addr int) []byte
+	)
+
 	if isa.Thumb {
 		w = 2
 		unknown = INST_THUMB_UNKNOWN
-		formatters = formatters16
+
+		switch isa.Arch {
+		default:
+			formatters = FORMAT16_ARCH_ARM
+		}
+
 		decoderFunc = func(b []byte, isa *Isa, decoder Decoder, op uint32, addr int) []byte {
 			return decoders16[decoder](b, isa, uint16(op), addr)
+		}
+	} else {
+		w = 4
+		unknown = INST_UNKNOWN
+
+		switch isa.Arch {
+		case ARCH_ARMv2:
+			formatters = FORMAT32_ARMv2
+		case ARCH_ARMv4t:
+			formatters = FORMAT32_ARMv4t
+		case ARCH_ARMv5te:
+			formatters = FORMAT32_ARMv5te
+		default:
+			formatters = FORMAT16_ARCH_ARM
+		}
+
+		decoderFunc = func(b []byte, isa *Isa, decoder Decoder, op uint32, addr int) []byte {
+			return decoders32[decoder](b, isa, op, addr)
 		}
 	}
 
@@ -41,12 +99,13 @@ func (isa *Isa) Decode(r io.Reader) []string {
 		panic(fmt.Sprintf("invalid byte cnt need mod %d, have rem %d", w, leftover))
 	}
 
-	cnt := len(bs) / w
-
 	// NOTE: start and end are used to only allocate strings once, removes per op allocations
-	buf := make([]byte, 0, cnt*256)
-	ends := make([]uint32, cnt)
-	ops := make([]uint32, cnt)
+	var (
+		cnt  = len(bs) / w
+		buf  = make([]byte, 0, cnt*256)
+		ends = make([]uint32, cnt)
+		ops  = make([]uint32, cnt)
+	)
 
 	for i := range cnt {
 		var v uint32
@@ -59,6 +118,11 @@ func (isa *Isa) Decode(r io.Reader) []string {
 
 		decoder := unknown
 		for j, desc := range formatters {
+
+			if desc.mask == 0 && desc.match == 0 {
+				continue
+			}
+
 			if (v & desc.mask) == desc.match {
 				decoder = Decoder(j)
 				break
@@ -69,13 +133,7 @@ func (isa *Isa) Decode(r io.Reader) []string {
 		ends[i] = uint32(len(buf))
 	}
 
-	s := convertBytesToStringArray(buf, ends)
-
-	//for i := range 128 {
-	//	fmt.Printf("%08X %s\n", ops[i], s[i])
-	//}
-
-	return s
+	return convertBytesToStringArray(buf, ends)
 }
 
 func convertBytesToStringArray(buf []byte, ends []uint32) []string {

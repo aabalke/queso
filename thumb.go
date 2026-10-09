@@ -53,7 +53,7 @@ const (
 	MAX_DECODER16_CNT
 )
 
-var formatters16 = []Formatter{
+var FORMAT16_ARCH_ARM = []Formatter{
 	INST_THUMB_BRA:  {0xF800, 0xE000},
 	INST_THUMB_SWI:  {0xFF00, 0xDF00},
 	INST_THUMB_BPT:  {0xFF00, 0xBE00},

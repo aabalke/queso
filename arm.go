@@ -7,30 +7,12 @@ import (
 
 var shifts = [4]string{"lsl", "lsr", "asr", "ror"}
 
-var aluOpsArm = [16]string{
-	"and",
-	"eor",
-	"sub",
-	"rsb",
-	"add",
-	"adc",
-	"sbc",
-	"rsc",
-	"tst",
-	"teq",
-	"cmp",
-	"cmn",
-	"orr",
-	"mov",
-	"bic",
-	"mvn",
-}
-
 const (
 	INST_SVC Decoder = iota
 	INST_EXT
 	INST_BKP
-	INST_COP
+	INST_CRT
+	INST_COP2
 	INST_BRA
 	INST_BRX
 	INST_SAT
@@ -38,7 +20,9 @@ const (
 	INST_USA
 	INST_PACK
 	INST_REV
-	INST_SDT
+	INST_MOVT
+	INST_SDT_REG
+	INST_SDT_IMM
 	INST_BLK
 	INST_MUL
 	INST_HAL
@@ -51,13 +35,77 @@ const (
 	INST_ALU_SHIFT_REG
 	INST_ALU_SHIFT_IMM
 	INST_CLZ
-	INST_QAL
 	INST_CDP
+	INST_CDT
+	INST_QAL
+	INST_HAL_V4
 	INST_UNKNOWN
 	MAX_DECODER32_CNT
 )
 
-var formatters32 = []Formatter{
+var FORMAT32_ARMv2 = []Formatter{
+	INST_SVC:           {0x0F00_0000, 0x0F00_0000},
+	INST_BRA:           {0x0E00_0000, 0x0A00_0000},
+	INST_UND:           {0x0E00_0010, 0x0600_0010},
+	INST_MUL:           {0x0F00_00F0, 0x0000_0090},
+	INST_SWP:           {0x0FB0_0FF0, 0x0100_0090},
+	INST_BLK:           {0x0E00_0000, 0x0800_0000},
+	INST_SDT_REG:       {0x0E00_0010, 0x0600_0000},
+	INST_SDT_IMM:       {0x0E00_0000, 0x0400_0000},
+	INST_ALU:           {0x0E00_0000, 0x0200_0000},
+	INST_ALU_SHIFT_REG: {0x0E00_0090, 0x0000_0010},
+	INST_ALU_SHIFT_IMM: {0x0E00_0010, 0x0000_0000},
+	INST_CRT:           {0x0F00_0010, 0x0E00_0010},
+	INST_CDP:           {0x0F00_0010, 0x0E00_0000},
+	INST_CDT:           {0x0E00_0000, 0x0C00_0000},
+}
+
+var FORMAT32_ARMv4t = []Formatter{
+	INST_SVC:           {0x0F00_0000, 0x0F00_0000},
+	INST_BKP:           {0xFFF0_00F0, 0xE120_0070},
+	INST_BRA:           {0x0E00_0000, 0x0A00_0000},
+	INST_BRX:           {0x0FFF_FF00, 0x012F_FF00},
+	INST_UND:           {0x0E00_0010, 0x0600_0010},
+	INST_MUL:           {0x0F00_00F0, 0x0000_0090},
+	INST_SWP:           {0x0FB0_0FF0, 0x0100_0090},
+	INST_BLK:           {0x0E00_0000, 0x0800_0000},
+	INST_HAL_V4:        {0x0E00_0090, 0x0000_0090},
+	INST_SDT_REG:       {0x0E00_0010, 0x0600_0000},
+	INST_SDT_IMM:       {0x0E00_0000, 0x0400_0000},
+	INST_ALU:           {0x0E00_0000, 0x0200_0000},
+	INST_ALU_SHIFT_REG: {0x0E00_0090, 0x0000_0010},
+	INST_ALU_SHIFT_IMM: {0x0E00_0010, 0x0000_0000},
+	INST_CRT:           {0x0F00_0010, 0x0E00_0010},
+	INST_MRS:           {0x0FBF_0FFF, 0x010F_0000},
+	INST_MSR:           {0x0DB0_F000, 0x0120_F000},
+	INST_CDP:           {0x0F00_0010, 0x0E00_0000},
+	INST_CDT:           {0x0E00_0000, 0x0C00_0000},
+}
+
+var FORMAT32_ARMv5te = []Formatter{
+	// TODO: Currently just armv4t
+	INST_SVC:           {0x0F00_0000, 0x0F00_0000},
+	INST_BKP:           {0xFFF0_00F0, 0xE120_0070},
+	INST_BRA:           {0x0E00_0000, 0x0A00_0000},
+	INST_BRX:           {0x0FFF_FF00, 0x012F_FF00},
+	INST_UND:           {0x0E00_0010, 0x0600_0010},
+	INST_MUL:           {0x0F00_00F0, 0x0000_0090},
+	INST_SWP:           {0x0FB0_0FF0, 0x0100_0090},
+	INST_BLK:           {0x0E00_0000, 0x0800_0000},
+	INST_HAL_V4:        {0x0E00_0090, 0x0000_0090},
+	INST_SDT_REG:       {0x0E00_0010, 0x0600_0000},
+	INST_SDT_IMM:       {0x0E00_0000, 0x0400_0000},
+	INST_ALU:           {0x0E00_0000, 0x0200_0000},
+	INST_ALU_SHIFT_REG: {0x0E00_0090, 0x0000_0010},
+	INST_ALU_SHIFT_IMM: {0x0E00_0010, 0x0000_0000},
+	INST_CRT:           {0x0F00_0010, 0x0E00_0010},
+	INST_MRS:           {0x0FBF_0FFF, 0x010F_0000},
+	INST_MSR:           {0x0DB0_F000, 0x0120_F000},
+	INST_CDP:           {0x0F00_0010, 0x0E00_0000},
+	INST_CDT:           {0x0E00_0000, 0x0C00_0000},
+}
+
+var FORMAT32_ARM = []Formatter{
 	INST_SVC:           {0x0F00_0000, 0x0F00_0000},
 	INST_BKP:           {0xFFF0_00F0, 0xE120_0070},
 	INST_BRA:           {0x0E00_0000, 0x0A00_0000},
@@ -70,11 +118,12 @@ var formatters32 = []Formatter{
 	INST_SWP:           {0x0FB0_0FF0, 0x0100_0090},
 	INST_BLK:           {0x0E00_0000, 0x0800_0000},
 	INST_HAL:           {0x0E00_0090, 0x0000_0090},
-	INST_SDT:           {0x0C00_0000, 0x0400_0000},
+	INST_SDT_REG:       {0x0E00_0010, 0x0600_0000},
+	INST_SDT_IMM:       {0x0E00_0000, 0x0400_0000},
 	INST_ALU:           {0x0E00_0000, 0x0200_0000},
 	INST_ALU_SHIFT_REG: {0x0E00_0090, 0x0000_0010},
 	INST_ALU_SHIFT_IMM: {0x0E00_0010, 0x0000_0000},
-	INST_COP:           {0x0F00_0010, 0x0E00_0010},
+	INST_CRT:           {0x0F00_0010, 0x0E00_0010},
 	INST_MRS:           {0x0FBF_0FFF, 0x010F_0000},
 	INST_MSR:           {0x0DB0_F000, 0x0120_F000},
 	INST_CDP:           {0x0F00_0010, 0x0E00_0000},
@@ -84,9 +133,12 @@ var formatters32 = []Formatter{
 	INST_USA:           {0x0FF0_00F0, 0x0780_0010},
 	INST_PACK:          {0x0FF0_0000, 0x0680_0000},
 	INST_REV:           {0x0FBF_0F70, 0x06BF_0F30},
+	INST_CDT:           {0x0E00_0000, 0x0C00_0000},
+	INST_COP2:          {0x0FE0_0000, 0x0C40_0000},
+	INST_MOVT:          {0x0FF0_0000, 0x0340_0000},
 }
 
-var decoders32 = [MAX_DECODER32_CNT]func(b []byte, isa *Isa, op uint32, addr int) []byte{
+var decoders32 = []func(b []byte, isa *Isa, op uint32, addr int) []byte{
 	INST_UNKNOWN:       unknown,
 	INST_SVC:           svc,
 	INST_BKP:           bkpt,
@@ -100,11 +152,13 @@ var decoders32 = [MAX_DECODER32_CNT]func(b []byte, isa *Isa, op uint32, addr int
 	INST_SWP:           swp,
 	INST_BLK:           blk,
 	INST_HAL:           half,
-	INST_SDT:           sdt,
+	INST_HAL_V4:        halfv4,
+	INST_SDT_REG:       sdtReg,
+	INST_SDT_IMM:       sdtImm,
 	INST_ALU_SHIFT_REG: aluShiftReg,
 	INST_ALU_SHIFT_IMM: aluShiftImm,
 	INST_ALU:           alu,
-	INST_COP:           cop,
+	INST_CRT:           crt,
 	INST_MRS:           mrs,
 	INST_MSR:           msr,
 	INST_CDP:           cdp,
@@ -114,6 +168,9 @@ var decoders32 = [MAX_DECODER32_CNT]func(b []byte, isa *Isa, op uint32, addr int
 	INST_USA:           usad,
 	INST_PACK:          pack,
 	INST_REV:           rev,
+	INST_CDT:           cdt,
+	INST_COP2:          cop2,
+	INST_MOVT:          movt,
 }
 
 func unknown(b []byte, isa *Isa, op uint32, addr int) []byte {
@@ -127,10 +184,6 @@ func svc(b []byte, isa *Isa, op uint32, addr int) []byte {
 	b = append(b, " 0x00000000"...)
 	c := strconv.AppendUint([]byte{}, uint64(op&0xFFFFFF), 16)
 	b = append(b[:len(b)-len(c)], c[:]...)
-
-	//b = appendHex(b, uint64(uint32(op&0xFFFFFF)))
-	//b = strconv.AppendUint(b, uint64(op&0xFFFFFF), 10)
-	//b = appendImm(b, int(op&0xFF_FFFF), isa.ImmediateValueBase)
 	return b
 }
 
@@ -141,7 +194,7 @@ func bkpt(b []byte, isa *Isa, op uint32, addr int) []byte {
 }
 
 func und(b []byte, isa *Isa, op uint32, addr int) []byte {
-	b = append(b, "undefined"...)
+	b = append(b, isa.UndefinedOutput...)
 	return b
 }
 
@@ -177,27 +230,15 @@ func bx(b []byte, isa *Isa, op uint32, addr int) []byte {
 	case 3:
 		b = append(b, "blx"...)
 	default:
-		b = append(b, "unknown branch exchange instruction"...)
-		return b
 	}
 
 	b = appendCond(b, op>>28)
 	b = append(b, ' ')
 	b = append(b, rn...)
-
 	return b
 }
 
-var mulOps = []string{
-	"mul",
-	"mla",
-	"umaal",
-	"",
-	"umull",
-	"umlal",
-	"smull",
-	"smlal",
-}
+var mulOps = []string{"mul", "mla", "umaal", "", "umull", "umlal", "smull", "smlal"}
 
 func mul(b []byte, isa *Isa, op uint32, addr int) []byte {
 	rd := isa.RegisterNaming[(op>>16)&0xF]
@@ -214,11 +255,11 @@ func mul(b []byte, isa *Isa, op uint32, addr int) []byte {
 	}
 
 	b = append(b, mulOps[inst]...)
-	b = appendCond(b, op>>28)
-
 	if inst != 2 && op&(1<<20) != 0 {
 		b = append(b, 's')
 	}
+
+	b = appendCond(b, op>>28)
 
 	b = append(b, ' ')
 
@@ -247,12 +288,7 @@ func mul(b []byte, isa *Isa, op uint32, addr int) []byte {
 	return b
 }
 
-var hwmOps = []string{
-	"smla",
-	"",
-	"smlal",
-	"smul",
-}
+var hwmOps = []string{"smla", "", "smlal", "smul"}
 
 func hwm(b []byte, isa *Isa, op uint32, addr int) []byte {
 	rd := isa.RegisterNaming[(op>>16)&0xF]
@@ -371,26 +407,50 @@ func swp(b []byte, isa *Isa, op uint32, addr int) []byte {
 	return b
 }
 
-func blk(b []byte, isa *Isa, op uint32, addr int) []byte {
-	if op&(1<<20) != 0 {
+var blkOpc = [2][4]string{
+	{"da", "ia", "db", "ib"},
+	{"da", "", "db", "ib"},
+}
+
+func blk(b []byte, isa *Isa, op uint32, _ int) []byte {
+	l := op&(1<<20) != 0
+	w := op&(1<<21) != 0
+	s := op&(1<<22) != 0
+	rn := (op >> 16) & 0xF
+	opc := (op >> 23) & 3
+	push := rn == 13 && !l && w && !s && opc == 0b10
+	pop := rn == 13 && l && w && !s && opc == 0b01
+
+	switch {
+	case push:
+		b = append(b, "push"...)
+	case pop:
+		b = append(b, "pop"...)
+	case l:
 		b = append(b, "ldm"...)
-	} else {
+		b = append(b, blkOpc[1][opc]...)
+	default:
 		b = append(b, "stm"...)
+		if opc != 0b01 || (s || w) {
+			b = append(b, blkOpc[0][opc]...)
+		}
 	}
 
-	amode := isa.BlockSuffixes[(op>>20)&1][(op>>23)&3]
-	b = append(b, amode...)
 	b = appendCond(b, op>>28)
 	b = append(b, ' ')
 
-	rn := isa.RegisterNaming[(op>>16)&0xF]
-	b = append(b, rn...)
+	if !push && !pop {
 
-	if op&(1<<21) != 0 {
-		b = append(b, '!')
+		b = append(b, isa.RegisterNaming[rn]...)
+
+		if w {
+			b = append(b, '!')
+		}
+
+		b = append(b, ", "...)
 	}
 
-	b = append(b, ", {"...)
+	b = append(b, "{"...)
 
 	for rlist := op & 0xFFFF; rlist != 0; {
 		i := bits.TrailingZeros32(rlist)
@@ -403,55 +463,65 @@ func blk(b []byte, isa *Isa, op uint32, addr int) []byte {
 
 	b = append(b, "}"...)
 
-	if op&(1<<22) != 0 {
+	if s {
 		b = append(b, '^')
 	}
 
 	return b
 }
 
-func half(b []byte, isa *Isa, op uint32, addr int) []byte {
-	rn := isa.RegisterNaming[(op>>16)&0xF]
-	rd := isa.RegisterNaming[(op>>12)&0xF]
-	pre := (op>>24)&1 != 0
-	inst := (op >> 5) & 3
+var halfOpc = [2][4]string{
+	{"", "strh", "ldrd", "strd"},
+	{"", "ldrh", "ldrsb", "ldrsh"},
+}
 
-	if load := (op>>20)&1 != 0; !load {
-		switch inst {
-		case 0:
-			b = append(b, "unknown half !load"...)
-			return b
-		case 1:
-			b = append(b, "strh"...)
-		case 2:
-			b = append(b, "ldrd"...)
-		case 3:
-			b = append(b, "strd"...)
-		}
-	} else {
-		switch inst {
-		case 0:
-			b = append(b, "unknown half load"...)
-			return b
-		case 1:
-			b = append(b, "ldrh"...)
-		case 2:
-			b = append(b, "ldrsb"...)
-		case 3:
-			b = append(b, "ldrsh"...)
-		}
+func halfv4(b []byte, isa *Isa, op uint32, _ int) []byte {
+	inst := (op >> 5) & 3
+	l := (op >> 20) & 1
+
+	if inst == 0 {
+		b = append(b, "unknown half"...)
+		return b
 	}
+
+	if inst >= 2 {
+		l = 1
+	}
+
+	b = append(b, halfOpc[l][inst]...)
+	b = halfShared(b, isa, op, 0)
+
+	return b
+}
+
+func half(b []byte, isa *Isa, op uint32, _ int) []byte {
+	inst := (op >> 5) & 3
+	l := (op >> 20) & 1
+
+	if inst == 0 {
+		b = append(b, "unknown half"...)
+		return b
+	}
+
+	b = append(b, halfOpc[l][inst]...)
+	b = halfShared(b, isa, op, 0)
+
+	return b
+}
+
+func halfShared(b []byte, isa *Isa, op uint32, _ int) []byte {
+	rn := (op >> 16) & 0xF
+	pre := (op>>24)&1 != 0
 
 	offset := make([]byte, 0, 8)
 	if imm := (op>>22)&1 != 0; imm {
-		if ofs := int((op & 0xF) | ((op >> 4) & 0xF0)); ofs != 0 {
-			if op&(1<<23) == 0 {
-				ofs = -ofs
-			}
-
-			offset = append(offset, ", "...)
-			offset = appendImm(offset, ofs, isa.ImmediateValueBase)
+		ofs := int((op & 0xF) | ((op >> 4) & 0xF0))
+		if op&(1<<23) == 0 {
+			ofs = -ofs
 		}
+
+		offset = append(offset, ", "...)
+		offset = appendImm(offset, ofs, isa.ImmediateValueBase)
 	} else {
 		offset = append(offset, ", "...)
 
@@ -464,21 +534,21 @@ func half(b []byte, isa *Isa, op uint32, addr int) []byte {
 
 	b = appendCond(b, op>>28)
 	b = append(b, ' ')
-	b = append(b, rd...)
+	b = append(b, isa.RegisterNaming[(op>>12)&0xF]...)
 
 	b = append(b, ", "...)
 
 	if pre {
 		b = append(b, '[')
-		b = append(b, rn...)
+		b = append(b, isa.RegisterNaming[rn]...)
 		b = append(b, offset...)
 		b = append(b, ']')
-		if wb := (op>>21)&1 != 0 && pre; wb {
+		if wb := (op>>21)&1 != 0; wb && rn != 15 {
 			b = append(b, '!')
 		}
 	} else {
 		b = append(b, '[')
-		b = append(b, rn...)
+		b = append(b, isa.RegisterNaming[rn]...)
 		b = append(b, ']')
 		b = append(b, offset...)
 	}
@@ -486,51 +556,10 @@ func half(b []byte, isa *Isa, op uint32, addr int) []byte {
 	return b
 }
 
-func sdt(b []byte, isa *Isa, op uint32, addr int) []byte {
+func sdtShared(b []byte, isa *Isa, op uint32, offset []byte) []byte {
 	pre := (op>>24)&1 != 0
 	rn := isa.RegisterNaming[(op>>16)&0xF]
 	rd := isa.RegisterNaming[(op>>12)&0xF]
-	pld := op>>28 == 0xF
-	if pld {
-		// TODO: confirm and correct pld
-		b = append(b, "pld"...)
-		return b
-	}
-
-	offset := make([]byte, 0, 32)
-	if reg := (op>>25)&1 != 0; !reg {
-		if ofs := int(op & 0xFFF); ofs != 0 {
-
-			if op&(1<<23) == 0 {
-				ofs = -ofs
-			}
-
-			offset = append(offset, ", "...)
-			offset = appendImm(offset, ofs, isa.ImmediateValueBase)
-		}
-	} else {
-
-		is := int((op >> 7) & 0x1F)
-		sType := (op >> 5) & 3
-		rm := isa.RegisterNaming[op&0xF]
-
-		if sType == 0 && is == 0 {
-			offset = append(offset, ", "...)
-			offset = append(offset, rm...)
-		} else {
-			offset = append(offset, ", "...)
-
-			if op&(1<<23) == 0 {
-				offset = append(offset, '-')
-			}
-
-			offset = append(offset, rm...)
-			offset = append(offset, ", "...)
-			offset = append(offset, shifts[sType]...)
-			offset = append(offset, ' ')
-			offset = appendImm(offset, is, isa.ImmediateValueBase)
-		}
-	}
 
 	if load := (op>>20)&1 != 0; load {
 		b = append(b, "ldr"...)
@@ -569,66 +598,113 @@ func sdt(b []byte, isa *Isa, op uint32, addr int) []byte {
 	return b
 }
 
-func aluShiftReg(b []byte, isa *Isa, op uint32, addr int) []byte {
-	rm := isa.RegisterNaming[op&0xF]
-	rs := isa.RegisterNaming[(op>>8)&0xF]
+func sdtReg(b []byte, isa *Isa, op uint32, addr int) []byte {
+	pld := op>>28 == 0xF
+	if pld {
+		// TODO: confirm and correct pld
+		b = append(b, "pld"...)
+		return b
+	}
+
+	offset := make([]byte, 0, 32)
+
+	is := int((op >> 7) & 0x1F)
 	sType := (op >> 5) & 3
-	shift := shifts[sType]
-
-	b = appendAluPre(b, isa, op, addr)
-
-	b = append(b, rm...)
-	b = append(b, ", "...)
-	b = append(b, shift...)
-	b = append(b, " "...)
-	b = append(b, rs...)
-	return b
-}
-
-func aluShiftImm(b []byte, isa *Isa, op uint32, addr int) []byte {
 	rm := isa.RegisterNaming[op&0xF]
-	sType := (op >> 5) & 3
-	is := (op >> 7) & 0x1F
 
-	b = appendAluPre(b, isa, op, addr)
+	offset = append(offset, ", "...)
+	if op&(1<<23) == 0 {
+		offset = append(offset, '-')
+	}
+	offset = append(offset, rm...)
 
-	b = append(b, rm...)
-	b = append(b, ", "...)
-
-	shift := shifts[sType]
 	if is == 0 {
 		switch sType {
-		case 0:
+		case 0: // skip
 		case 1, 2:
-			b = append(b, shift...)
-			b = append(b, " #32"...)
+			offset = append(offset, ", "...)
+			offset = append(offset, shifts[sType]...)
+			offset = append(offset, " #"...)
+			offset = strconv.AppendUint(offset, 32, 10)
 		case 3:
-			b = append(b, "rrx #1"...)
+			offset = append(offset, ", "...)
+			offset = append(offset, "rrx"...)
 		}
 	} else {
-		b = append(b, shift...)
-		b = append(b, " #"...)
-		b = strconv.AppendUint(b, uint64(is), 10)
+		offset = append(offset, ", "...)
+		offset = append(offset, shifts[sType]...)
+		offset = append(offset, ' ')
+		offset = appendImm(offset, is, isa.ImmediateValueBase)
 	}
+
+	b = sdtShared(b, isa, op, offset)
 
 	return b
-	//// TODO: NOP (MOV r0, r0)
-	//// TODO: shifts with mov are lsl, lsr, asr, and ror (rrx) separately
 }
 
-func appendAluPre(b []byte, isa *Isa, op uint32, addr int) []byte {
-	inst := (op >> 21) & 0xF
-	logical := inst >= 8 && inst < 0xC
-	b = append(b, aluOpsArm[inst]...)
-	b = appendCond(b, op>>28)
-	if op&(1<<20) != 0 && !logical {
+func sdtImm(b []byte, isa *Isa, op uint32, addr int) []byte {
+	pld := op>>28 == 0xF
+	if pld {
+		// TODO: confirm and correct pld
+		b = append(b, "pld"...)
+		return b
+	}
+
+	offset := make([]byte, 0, 32)
+	ofs := int(op & 0xFFF)
+
+	offset = append(offset, ", #"...)
+	if op&(1<<23) == 0 {
+		offset = append(offset, "-"...)
+	}
+
+	offset = strconv.AppendUint(offset, uint64(ofs), 10)
+
+	b = sdtShared(b, isa, op, offset)
+	return b
+}
+
+var aluOpsArm = [16]string{
+	"and", "eor", "sub", "rsb", "add", "adc", "sbc", "rsc",
+	"tst", "teq", "cmp", "cmn", "orr", "mov", "bic", "mvn",
+}
+
+func appendAluShiftPre(b []byte, isa *Isa, op uint32, _ int) []byte {
+	sType := (op >> 5) & 3
+	shift := shifts[sType]
+	b = append(b, shift...)
+	if set := op&(1<<20) != 0; set {
 		b = append(b, "s"...)
 	}
+	b = appendCond(b, op>>28)
 
 	b = append(b, " "...)
 
 	rd := (op >> 12) & 0xF
+	b = append(b, isa.RegisterNaming[rd]...)
+	b = append(b, ", "...)
+
+	return b
+}
+
+func appendAluPre(b []byte, isa *Isa, op uint32, _ int) []byte {
+	inst := (op >> 21) & 0xF
+	logical := inst >= 8 && inst < 0xC
+	rd := (op >> 12) & 0xF
 	rn := (op >> 16) & 0xF
+
+	b = append(b, aluOpsArm[inst]...)
+	if set := op&(1<<20) != 0; set && !logical {
+		b = append(b, "s"...)
+	}
+
+	if logical && rd == 15 {
+		b = append(b, "p"...)
+	}
+
+	b = appendCond(b, op>>28)
+
+	b = append(b, " "...)
 
 	if !logical {
 		b = append(b, isa.RegisterNaming[rd]...)
@@ -643,31 +719,117 @@ func appendAluPre(b []byte, isa *Isa, op uint32, addr int) []byte {
 	return b
 }
 
-func alu(b []byte, isa *Isa, op uint32, addr int) []byte {
-	b = appendAluPre(b, isa, op, addr)
-	b = append(b, "#"...)
+func aluShiftReg(b []byte, isa *Isa, op uint32, addr int) []byte {
+	rm := isa.RegisterNaming[op&0xF]
+	rs := isa.RegisterNaming[(op>>8)&0xF]
 
-	// TODO: what decides imm full vs nn, ror rot?
-	ror := (int((op>>8)&0xF) * 2)
-	if useRor := false; useRor {
+	if shiftOnly := (op>>21)&0xF == 0xD; shiftOnly {
+		b = appendAluShiftPre(b, isa, op, addr)
+		b = append(b, rm...)
+		b = append(b, ", "...)
+		b = append(b, rs...)
+		return b
+	} else {
+		sType := (op >> 5) & 3
+		shift := shifts[sType]
+		b = appendAluPre(b, isa, op, addr)
+		b = append(b, rm...)
+		b = append(b, ", "...)
+		b = append(b, shift...)
+		b = append(b, " "...)
+		b = append(b, rs...)
+		return b
+	}
+}
 
-		b = strconv.AppendUint(b, uint64(op&0xFF), 10)
+func aluShiftImm(b []byte, isa *Isa, op uint32, _ int) []byte {
+	rm := isa.RegisterNaming[op&0xF]
+	sType := (op >> 5) & 3
+	is := (op >> 7) & 0x1F
+	shift := shifts[sType]
+	shiftOnly := (op>>21)&0xF == 0xD && (sType != 0 || is != 0)
 
-		if ror != 0 {
-			b = append(b, ", "...)
-			b = strconv.AppendUint(b, uint64(ror), 10)
+	if shiftOnly {
+
+		b = appendAluShiftPre(b, isa, op, 0)
+
+		b = append(b, rm...)
+		b = append(b, ", "...)
+
+		if is == 0 {
+			switch sType {
+			case 0:
+				panic("should be possible")
+			case 1, 2:
+				b = append(b, " #32"...)
+			case 3:
+				b = append(b, "rrx"...)
+			}
+		} else {
+			b = append(b, " #"...)
+			b = strconv.AppendUint(b, uint64(is), 10)
 		}
 
+		return b
 	} else {
-		nn := bits.RotateLeft32(op&0xFF, -ror)
-		b = strconv.AppendUint(b, uint64(nn), 10)
 
+		b = appendAluPre(b, isa, op, 0)
+
+		b = append(b, rm...)
+
+		if is == 0 {
+			switch sType {
+			case 0:
+			case 1, 2:
+				b = append(b, ", "...)
+				b = append(b, shift...)
+				b = append(b, " #32"...)
+			case 3:
+				b = append(b, ", "...)
+				b = append(b, "rrx"...)
+			}
+		} else {
+			b = append(b, ", "...)
+			b = append(b, shift...)
+			b = append(b, " #"...)
+			b = strconv.AppendUint(b, uint64(is), 10)
+		}
+
+		return b
+	}
+	//// TODO: NOP (MOV r0, r0)
+	//// TODO: shifts with mov are lsl, lsr, asr, and ror (rrx) separately
+}
+
+func alu(b []byte, isa *Isa, op uint32, _ int) []byte {
+	b = appendAluPre(b, isa, op, 0)
+	b = append(b, "#"...)
+
+	rot := int((op>>8)&0xF) * 2
+	imm8 := op & 0xFF
+	a := bits.RotateLeft32(imm8, -rot)
+
+	i := 0
+	for i < 32 {
+		if bits.RotateLeft32(a, i) <= 0xFF {
+			break
+		}
+
+		i += 2
+	}
+
+	if i != rot {
+		b = strconv.AppendUint(b, uint64(imm8), 10)
+		b = append(b, ", "...)
+		b = strconv.AppendUint(b, uint64(rot), 10)
+	} else {
+		b = strconv.AppendInt(b, int64(int32(a)), 10)
 	}
 
 	return b
 }
 
-func cop(b []byte, isa *Isa, op uint32, addr int) []byte {
+func crt(b []byte, isa *Isa, op uint32, addr int) []byte {
 	var (
 		opc = (op >> 21) & 7
 		cn  = (op >> 16) & 0xF
@@ -677,22 +839,27 @@ func cop(b []byte, isa *Isa, op uint32, addr int) []byte {
 		cm  = (op >> 0) & 0xF
 	)
 
+	if op&(1<<20) != 0 && (op>>12)&0xF == 0xF {
+		rd = "apsr_nzcv"
+	}
+
 	if m2 := op>>28 == 0xF; m2 {
 		if op&(1<<20) != 0 {
-			b = append(b, "mrc2 "...)
+			b = append(b, "mrc2"...)
 		} else {
-			b = append(b, "mcr2 "...)
+			b = append(b, "mcr2"...)
 		}
 	} else {
 		if op&(1<<20) != 0 {
-			b = append(b, "mrc "...)
+			b = append(b, "mrc"...)
 			b = appendCond(b, op>>28)
 		} else {
-			b = append(b, "mcr "...)
+			b = append(b, "mcr"...)
 			b = appendCond(b, op>>28)
 		}
 	}
 
+	b = append(b, " "...)
 	b = strconv.AppendUint(b, uint64(pn), 10)
 	b = append(b, ", "...)
 	b = strconv.AppendUint(b, uint64(opc), 10)
@@ -703,11 +870,9 @@ func cop(b []byte, isa *Isa, op uint32, addr int) []byte {
 	b = append(b, ", cr"...)
 	b = strconv.AppendUint(b, uint64(cm), 10)
 
-	if cp != 0 {
-		b = append(b, ", {"...)
-		b = strconv.AppendUint(b, uint64(cp), 10)
-		b = append(b, "}"...)
-	}
+	b = append(b, ", {"...)
+	b = strconv.AppendUint(b, uint64(cp), 10)
+	b = append(b, "}"...)
 
 	return b
 }
@@ -733,13 +898,28 @@ func msr(b []byte, isa *Isa, op uint32, addr int) []byte {
 	b = appendCond(b, op>>28)
 	b = append(b, " "...)
 	b = append(b, psrs[(op>>22)&1]...)
-	b = append(b, ", "...)
+
+	b = append(b, "_"...)
+
+	if op&(1<<19) != 0 {
+		b = append(b, "f"...)
+	}
+	if op&(1<<18) != 0 {
+		b = append(b, "s"...)
+	}
+	if op&(1<<17) != 0 {
+		b = append(b, "x"...)
+	}
+	if op&(1<<16) != 0 {
+		b = append(b, "c"...)
+	}
 
 	if imm := (op>>25)&1 != 0; imm {
-		v := ((op >> 8) & 0xF) << 1
-		v = bits.RotateLeft32(op&0xFF, int(v))
-		b = appendImm(b, int(v), isa.ImmediateValueBase)
+		b = append(b, ", #"...)
+		v := int32(bits.RotateLeft32(op&0xFF, -int(((op>>8)&0xF)<<1)))
+		b = strconv.AppendInt(b, int64(v), 10)
 	} else {
+		b = append(b, ", "...)
 		b = append(b, isa.RegisterNaming[op&0xF]...)
 	}
 	return b
@@ -988,5 +1168,133 @@ func rev(b []byte, isa *Isa, op uint32, addr int) []byte {
 	b = append(b, ", "...)
 	b = append(b, isa.RegisterNaming[rm]...)
 
+	return b
+}
+
+func cdt(b []byte, isa *Isa, op uint32, addr int) []byte {
+	rn := (op >> 16) & 0xF
+	cd := (op >> 12) & 0xF
+	pn := (op >> 8) & 0xF
+	ofs := (op & 0xFF)
+	ldc := (op>>20)&1 != 0
+
+	if op>>28 == 0xF {
+		if ldc {
+			b = append(b, "ldc2"...)
+		} else {
+			b = append(b, "stc2"...)
+		}
+		if l := (op>>22)&1 != 0; l {
+			b = append(b, "l"...)
+		}
+	} else {
+		if ldc {
+			b = append(b, "ldc"...)
+		} else {
+			b = append(b, "stc"...)
+		}
+		if l := (op>>22)&1 != 0; l {
+			b = append(b, "l"...)
+		}
+		b = appendCond(b, op>>28)
+	}
+
+	b = append(b, " "...)
+	b = strconv.AppendUint(b, uint64(pn), 10)
+	b = append(b, ", cr"...)
+	b = strconv.AppendUint(b, uint64(cd), 10)
+	b = append(b, ", ["...)
+	b = append(b, isa.RegisterNaming[rn]...)
+
+	pre := (op>>24)&1 != 0
+	up := (op>>23)&1 != 0
+	wb := (op>>21)&1 != 0
+
+	if !pre {
+		b = append(b, "]"...)
+	}
+
+	if !pre && !wb {
+		b = append(b, ", {"...)
+
+		if ofs == 0 && !up {
+			b = append(b, "-"...)
+		}
+
+		b = strconv.AppendUint(b, uint64(ofs), 10)
+		b = append(b, "}"...)
+		return b
+	}
+
+	if ofs != 0 || !up {
+
+		b = append(b, ", #"...)
+
+		if !up {
+			b = append(b, "-"...)
+		}
+		b = strconv.AppendUint(b, uint64(ofs*4), 10)
+	}
+
+	if pre {
+		b = append(b, "]"...)
+	}
+
+	if wb && pre && ofs != 0 {
+		b = append(b, "!"...)
+	}
+
+	return b
+}
+
+func cop2(b []byte, isa *Isa, op uint32, addr int) []byte {
+	var (
+		rn  = isa.RegisterNaming[(op>>16)&0xF]
+		rd  = isa.RegisterNaming[(op>>12)&0xF]
+		pn  = (op >> 8) & 0xF
+		opc = (op >> 4) & 0xF
+		cm  = (op >> 0) & 0xF
+	)
+
+	if m2 := op>>28 == 0xF; m2 {
+		if op&(1<<20) != 0 {
+			b = append(b, "mrrc2 "...)
+		} else {
+			b = append(b, "mcrr2 "...)
+		}
+	} else {
+		if op&(1<<20) != 0 {
+			b = append(b, "mrrc"...)
+			b = appendCond(b, op>>28)
+		} else {
+			b = append(b, "mcrr"...)
+			b = appendCond(b, op>>28)
+		}
+		b = append(b, " "...)
+	}
+
+	b = strconv.AppendUint(b, uint64(pn), 10)
+	b = append(b, ", "...)
+	b = strconv.AppendUint(b, uint64(opc), 10)
+	b = append(b, ", "...)
+	b = append(b, rd...)
+	b = append(b, ", "...)
+	b = append(b, rn...)
+	b = append(b, ", cr"...)
+	b = strconv.AppendUint(b, uint64(cm), 10)
+
+	return b
+}
+
+func movt(b []byte, isa *Isa, op uint32, addr int) []byte {
+	imm := (op & 0xFFF) | (((op >> 16) & 0xF) << 12)
+	rd := isa.RegisterNaming[(op>>12)&0xF]
+
+	b = append(b, "movt"...)
+	b = appendCond(b, op>>28)
+	b = append(b, " "...)
+	b = append(b, rd...)
+	b = append(b, ", #"...)
+	b = strconv.AppendUint(b, uint64(imm), 10)
 	return b
 }

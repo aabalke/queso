@@ -7,47 +7,66 @@ import (
 	"unsafe"
 )
 
-type Arch string
+// TODO: add offset addr option
 
-const (
-	// ARCH_ARM     Arch = "arm"
-	ARCH_ARMv2 Arch = "armv2"
-	// ARCH_ARMv2a  Arch = "armv2a"
-	// ARCH_ARMv3   Arch = "armv3"
-	// ARCH_ARMv3m  Arch = "armv3m"
-	// ARCH_ARMv4   Arch = "armv4"
-	ARCH_ARMv4t Arch = "armv4t"
-	// ARCH_ARMv5   Arch = "armv5"
-	// ARCH_ARMv5t  Arch = "armv5t"
-	ARCH_ARMv5te Arch = "armv5te"
-	// "xscale"
-	// "ep9312"
-	// "iwmmxt"
-	// "iwmmxt2"
-	// "armv5tej"
-	// "armv6"
-	// "armv6kz"
-	// "armv6t2"
-	// "armv6k"
-	// "armv7"
-	// "armv6-m"
-	// "armv6s-m"
-	// "armv7e-m"
-	// "armv8-a"
-	// "armv8-r"
-	// "armv8-m.base"
-	// "armv8-m.main"
-	// "armv8.1-m.main"
-	ARCH_ARM_ANY Arch = "arm_any"
+type Arch struct {
+	idx   int
+	name  string
+	thumb bool
+}
+
+const ( // used for gating features
+	ARCH_IDX_ARMv2 = iota
+	ARCH_IDX_ARMv3
+	ARCH_IDX_ARMv4t
+	ARCH_IDX_ARMv5te
+	ARCH_IDX_ARM_ANY
 )
 
+var (
+	ARCH_ARMv2   = Arch{ARCH_IDX_ARMv2, "armv2", false}
+	ARCH_ARMv3   = Arch{ARCH_IDX_ARMv3, "armv3", false}
+	ARCH_ARMv4t  = Arch{ARCH_IDX_ARMv4t, "armv4t", true}
+	ARCH_ARMv5te = Arch{ARCH_IDX_ARMv5te, "armv5te", true}
+	ARCH_ARM_ANY = Arch{ARCH_IDX_ARM_ANY, "arm_any", true}
+)
+
+//"armv1"
+//"armv2"
+//"armv2a"
+//"armv3"
+//"armv3m"
+//"armv4"
+//"armv4t"
+//"armv5"
+//"armv5t"
+//"armv5te"
+//"xscale"
+//"ep9312"
+//"iwmmxt"
+//"iwmmxt2"
+//"armv5tej"
+//"armv6"
+//"armv6kz"
+//"armv6t2"
+//"armv6k"
+//"armv7"
+//"armv6-m"
+//"armv6s-m"
+//"armv7e-m"
+//"armv8-a"
+//"armv8-r"
+//"armv8-m.base"
+//"armv8-m.main"
+//"armv8.1-m.main"
+//"arm_any"
+
 type Isa struct {
-	Arch               Arch
-	Order              binary.ByteOrder
-	RegisterNaming     RegisterNaming
-	ImmediateValueBase HexImmediateBase
-	UndefinedOutput    string
-	Thumb              bool
+	Arch                               Arch
+	Order                              binary.ByteOrder
+	RegisterNaming                     RegisterNaming
+	UndefinedOutput                    string
+	Thumb, OutputAddress, OutputOpcode bool
 }
 
 func (isa *Isa) Decode(r io.Reader) []string {
@@ -63,9 +82,35 @@ func (isa *Isa) Decode(r io.Reader) []string {
 		decoderFunc func(b []byte, isa *Isa, decoder Decoder, op uint32, addr int) []byte
 	)
 
-	if isa.Thumb {
+	if !isa.Thumb {
+		w = 4
+		unknown = INST_UNKNOWN
+
+		switch isa.Arch {
+		case ARCH_ARMv2:
+			formatters = FORMAT32_ARMv2
+		case ARCH_ARMv3:
+			formatters = FORMAT32_ARMv3
+		case ARCH_ARMv4t:
+			formatters = FORMAT32_ARMv4t
+		case ARCH_ARMv5te:
+			formatters = FORMAT32_ARMv5te
+		default:
+			formatters = FORMAT32_ARM
+		}
+
+		decoderFunc = func(b []byte, isa *Isa, decoder Decoder, op uint32, addr int) []byte {
+			return decoders32[decoder](b, isa, op, addr)
+		}
+	} else {
 		w = 2
 		unknown = INST_THUMB_UNKNOWN
+
+		if !isa.Arch.thumb {
+			return []string{
+				fmt.Sprintf("arm arch version %s does not support thumb instructions", isa.Arch.name),
+			}
+		}
 
 		switch isa.Arch {
 		default:
@@ -74,24 +119,6 @@ func (isa *Isa) Decode(r io.Reader) []string {
 
 		decoderFunc = func(b []byte, isa *Isa, decoder Decoder, op uint32, addr int) []byte {
 			return decoders16[decoder](b, isa, uint16(op), addr)
-		}
-	} else {
-		w = 4
-		unknown = INST_UNKNOWN
-
-		switch isa.Arch {
-		case ARCH_ARMv2:
-			formatters = FORMAT32_ARMv2
-		case ARCH_ARMv4t:
-			formatters = FORMAT32_ARMv4t
-		case ARCH_ARMv5te:
-			formatters = FORMAT32_ARMv5te
-		default:
-			formatters = FORMAT16_ARCH_ARM
-		}
-
-		decoderFunc = func(b []byte, isa *Isa, decoder Decoder, op uint32, addr int) []byte {
-			return decoders32[decoder](b, isa, op, addr)
 		}
 	}
 
@@ -126,6 +153,18 @@ func (isa *Isa) Decode(r io.Reader) []string {
 			if (v & desc.mask) == desc.match {
 				decoder = Decoder(j)
 				break
+			}
+		}
+
+		if isa.OutputAddress {
+			buf = append(buf, fmt.Sprintf("0x%08X: ", i*w)...)
+		}
+
+		if isa.OutputOpcode {
+			if isa.Thumb {
+				buf = append(buf, fmt.Sprintf("%04X: ", v)...)
+			} else {
+				buf = append(buf, fmt.Sprintf("%08X: ", v)...)
 			}
 		}
 

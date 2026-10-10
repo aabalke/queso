@@ -23,17 +23,22 @@ import (
 // thumb16 instructions can be all tested exhaustively
 // arm32 and thumb-2 (32 bit) have to be randomly tested
 
+// NOTE: Hlt instruction: "Defined in V8 but is in undefined encoding space for earlier
+// architectures.  However earlier architectures are required to treat
+// this instuction as a semihosting trap as well.  Hence while not explicitly
+// defined as such, it is in fact correct to define the instruction for all
+// architectures." - binutils gas. Since this projects goal is to accurately disassemble
+// emulated, and decomped arm binaries, hlt will not be included.
+
 func newIsa(arch Arch, thumb bool) *Isa {
 	return &Isa{
-		Arch:               arch,
-		Order:              binary.LittleEndian,
-		Thumb:              thumb,
-		RegisterNaming:     ConventionNaming,
-		ImmediateValueBase: DEC_BASE,
+		Arch:           arch,
+		Order:          binary.LittleEndian,
+		Thumb:          thumb,
+		RegisterNaming: ConventionNaming,
 	}
 }
 
-// norm makes comparisons tolerant of whitespace/case differences.
 func norm(s string) string {
 	s = strings.ToLower(s)
 	return strings.Join(strings.Fields(strings.ReplaceAll(s, "\t", " ")), " ")
@@ -76,7 +81,7 @@ func runObjdump(t *testing.T, data []byte, arch Arch, thumb bool) map[int]string
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	args := []string{"-D", "-z", "-b", "binary", "-marm", "--endian=little", "-m", string(arch)}
+	args := []string{"-D", "-z", "-b", "binary", "-marm", "--endian=little", "-m", string(arch.name)}
 	if thumb {
 		args = append(args, "-M", "force-thumb")
 	}
@@ -91,7 +96,6 @@ func runObjdump(t *testing.T, data []byte, arch Arch, thumb bool) map[int]string
 
 	sc.Buffer(make([]byte, 1<<20), 1<<20)
 	for sc.Scan() {
-		//fmt.Printf("%q\n", sc.Text())
 		if m := lineRe.FindStringSubmatch(sc.Text()); m != nil {
 			addr, _ := strconv.ParseInt(m[1], 16, 64)
 			res[int(addr)] = m[3]
@@ -113,7 +117,9 @@ func isUndefinedText(s string) bool {
 		strings.Contains(s, "undefined") ||
 		strings.Contains(s, "unpredictable") ||
 		strings.HasPrefix(s, ".word") ||
-		strings.HasPrefix(s, ".short")
+		strings.HasPrefix(s, ".short") ||
+		strings.Contains(s, notAssemblable) ||
+		strings.HasPrefix(s, "hlt")
 }
 
 // markUnassemblable runs every disassembled line through arm-none-eabi-as
@@ -156,7 +162,7 @@ func markUnassemblable(t *testing.T, res map[int]string, arch Arch, thumb bool) 
 	}
 
 	// gas exits non-zero when anything fails; that's expected here.
-	out, _ := exec.Command(asBin, "-march="+string(arch), src,
+	out, _ := exec.Command(asBin, "-march="+string(arch.name), src,
 		"-o", filepath.Join(dir, "t.o")).CombinedOutput()
 
 	bad := 0
@@ -169,7 +175,7 @@ func markUnassemblable(t *testing.T, res map[int]string, arch Arch, thumb bool) 
 		res[addrs[idx]] = notAssemblable
 		bad++
 	}
-	t.Logf("%s: %d/%d lines not assemblable", arch, bad, len(addrs))
+	t.Logf("%s: %d/%d lines not assemblable", arch.name, bad, len(addrs))
 }
 
 type mismatch struct {
@@ -205,13 +211,11 @@ func compare(t *testing.T, arch Arch, thumb bool, ops []uint32) {
 		}
 
 		wantN, gotN := normRef(want), norm(got[i])
-		// skip things objdump itself calls undefined/unpredictable
-		// hlt is v8 but for some reason objdump includes in all
-		if strings.HasPrefix(wantN, "udf") || strings.Contains(wantN, "undefined") ||
-			strings.Contains(wantN, "unpredictable") || strings.HasPrefix(wantN, ".word") ||
-			strings.HasPrefix(wantN, ".short") || strings.Contains(wantN, notAssemblable) || strings.HasPrefix(wantN, "hlt") {
+
+		if isUndefinedText(wantN) {
 			continue
 		}
+
 		if gotN != wantN {
 			total++
 			key := strings.Fields(wantN + " ?")[0]
@@ -227,12 +231,15 @@ func compare(t *testing.T, arch Arch, thumb bool, ops []uint32) {
 	}
 	sort.Slice(keys, func(a, b int) bool { return len(buckets[keys[a]]) > len(buckets[keys[b]]) })
 
+	instCnt := 1
+	mismatchesPerInst := 50
+
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "%d / %d mismatches (%.3f%%)\n", total, len(ops), 100*float64(total)/float64(len(ops)))
-	for _, k := range keys[:min(len(keys), 1000)] {
+	for _, k := range keys[:min(len(keys), instCnt)] {
 		ms := buckets[k]
 		fmt.Fprintf(&sb, "  [%s] %d mismatches:\n", k, len(ms))
-		for _, m := range ms[:min(3, len(ms))] {
+		for _, m := range ms[:min(mismatchesPerInst, len(ms))] {
 			fmt.Fprintf(&sb, "    %08X\n      got : %s\n      want: %s\n", m.op, m.got, m.want)
 		}
 	}
@@ -267,6 +274,7 @@ func testThumb(t *testing.T, arch Arch) {
 }
 
 func TestArmV2(t *testing.T)   { testArm(t, ARCH_ARMv2) }
+func TestArmV3(t *testing.T)   { testArm(t, ARCH_ARMv3) }
 func TestArmV4T(t *testing.T)  { testArm(t, ARCH_ARMv4t) }
 func TestArmV5TE(t *testing.T) { testArm(t, ARCH_ARMv5te) }
 

@@ -5,10 +5,9 @@ import (
 	"strconv"
 )
 
-var shifts = [4]string{"lsl", "lsr", "asr", "ror"}
-
 const (
 	INST_SVC Decoder = iota
+	INST_NV          // TODO: need to get nv figured out
 	INST_EXT
 	INST_BKP
 	INST_CRT
@@ -38,7 +37,6 @@ const (
 	INST_CDP
 	INST_CDT
 	INST_QAL
-	INST_HAL_V4
 	INST_UNKNOWN
 	MAX_DECODER32_CNT
 )
@@ -58,6 +56,27 @@ var FORMAT32_ARMv2 = []Formatter{
 	INST_CRT:           {0x0F00_0010, 0x0E00_0010},
 	INST_CDP:           {0x0F00_0010, 0x0E00_0000},
 	INST_CDT:           {0x0E00_0000, 0x0C00_0000},
+	INST_NV:            {0xF000_0000, 0xF000_0000}, // should exist? v2 has nv
+}
+
+var FORMAT32_ARMv3 = []Formatter{
+	INST_SVC:           {0x0F00_0000, 0x0F00_0000},
+	INST_BRA:           {0x0E00_0000, 0x0A00_0000},
+	INST_UND:           {0x0E00_0010, 0x0600_0010},
+	INST_MUL:           {0x0F00_00F0, 0x0000_0090},
+	INST_SWP:           {0x0FB0_0FF0, 0x0100_0090},
+	INST_BLK:           {0x0E00_0000, 0x0800_0000},
+	INST_SDT_REG:       {0x0E00_0010, 0x0600_0000},
+	INST_SDT_IMM:       {0x0E00_0000, 0x0400_0000},
+	INST_ALU:           {0x0E00_0000, 0x0200_0000},
+	INST_ALU_SHIFT_REG: {0x0E00_0090, 0x0000_0010},
+	INST_ALU_SHIFT_IMM: {0x0E00_0010, 0x0000_0000},
+	INST_CRT:           {0x0F00_0010, 0x0E00_0010},
+	INST_MRS:           {0x0FBF_0FFF, 0x010F_0000},
+	INST_MSR:           {0x0DB0_F000, 0x0120_F000},
+	INST_CDP:           {0x0F00_0010, 0x0E00_0000},
+	INST_CDT:           {0x0E00_0000, 0x0C00_0000},
+	INST_NV:            {0xF000_0000, 0xF000_0000},
 }
 
 var FORMAT32_ARMv4t = []Formatter{
@@ -69,7 +88,7 @@ var FORMAT32_ARMv4t = []Formatter{
 	INST_MUL:           {0x0F00_00F0, 0x0000_0090},
 	INST_SWP:           {0x0FB0_0FF0, 0x0100_0090},
 	INST_BLK:           {0x0E00_0000, 0x0800_0000},
-	INST_HAL_V4:        {0x0E00_0090, 0x0000_0090},
+	INST_HAL:           {0x0E00_0090, 0x0000_0090},
 	INST_SDT_REG:       {0x0E00_0010, 0x0600_0000},
 	INST_SDT_IMM:       {0x0E00_0000, 0x0400_0000},
 	INST_ALU:           {0x0E00_0000, 0x0200_0000},
@@ -80,19 +99,22 @@ var FORMAT32_ARMv4t = []Formatter{
 	INST_MSR:           {0x0DB0_F000, 0x0120_F000},
 	INST_CDP:           {0x0F00_0010, 0x0E00_0000},
 	INST_CDT:           {0x0E00_0000, 0x0C00_0000},
+	INST_NV:            {0xF000_0000, 0xF000_0000},
 }
 
 var FORMAT32_ARMv5te = []Formatter{
-	// TODO: Currently just armv4t
 	INST_SVC:           {0x0F00_0000, 0x0F00_0000},
 	INST_BKP:           {0xFFF0_00F0, 0xE120_0070},
 	INST_BRA:           {0x0E00_0000, 0x0A00_0000},
 	INST_BRX:           {0x0FFF_FF00, 0x012F_FF00},
 	INST_UND:           {0x0E00_0010, 0x0600_0010},
 	INST_MUL:           {0x0F00_00F0, 0x0000_0090},
+	INST_HWM:           {0x0F90_0090, 0x0100_0080},
+	INST_CLZ:           {0x0FFF_0F10, 0x016F_0F10},
+	INST_QAL:           {0x0100_0FF0, 0x0100_0050},
 	INST_SWP:           {0x0FB0_0FF0, 0x0100_0090},
 	INST_BLK:           {0x0E00_0000, 0x0800_0000},
-	INST_HAL_V4:        {0x0E00_0090, 0x0000_0090},
+	INST_HAL:           {0x0E00_0090, 0x0000_0090},
 	INST_SDT_REG:       {0x0E00_0010, 0x0600_0000},
 	INST_SDT_IMM:       {0x0E00_0000, 0x0400_0000},
 	INST_ALU:           {0x0E00_0000, 0x0200_0000},
@@ -103,6 +125,8 @@ var FORMAT32_ARMv5te = []Formatter{
 	INST_MSR:           {0x0DB0_F000, 0x0120_F000},
 	INST_CDP:           {0x0F00_0010, 0x0E00_0000},
 	INST_CDT:           {0x0E00_0000, 0x0C00_0000},
+	INST_COP2:          {0x0FE0_0000, 0x0C40_0000},
+	INST_NV:            {0xF000_0000, 0xF000_0000},
 }
 
 var FORMAT32_ARM = []Formatter{
@@ -136,6 +160,7 @@ var FORMAT32_ARM = []Formatter{
 	INST_CDT:           {0x0E00_0000, 0x0C00_0000},
 	INST_COP2:          {0x0FE0_0000, 0x0C40_0000},
 	INST_MOVT:          {0x0FF0_0000, 0x0340_0000},
+	INST_NV:            {0xF000_0000, 0xF000_0000},
 }
 
 var decoders32 = []func(b []byte, isa *Isa, op uint32, addr int) []byte{
@@ -152,7 +177,6 @@ var decoders32 = []func(b []byte, isa *Isa, op uint32, addr int) []byte{
 	INST_SWP:           swp,
 	INST_BLK:           blk,
 	INST_HAL:           half,
-	INST_HAL_V4:        halfv4,
 	INST_SDT_REG:       sdtReg,
 	INST_SDT_IMM:       sdtImm,
 	INST_ALU_SHIFT_REG: aluShiftReg,
@@ -171,6 +195,7 @@ var decoders32 = []func(b []byte, isa *Isa, op uint32, addr int) []byte{
 	INST_CDT:           cdt,
 	INST_COP2:          cop2,
 	INST_MOVT:          movt,
+	INST_NV:            unknown,
 }
 
 func unknown(b []byte, isa *Isa, op uint32, addr int) []byte {
@@ -188,8 +213,10 @@ func svc(b []byte, isa *Isa, op uint32, addr int) []byte {
 }
 
 func bkpt(b []byte, isa *Isa, op uint32, addr int) []byte {
-	b = append(b, "bkpt "...)
-	b = appendImm(b, int((op&0xF)|(((op>>8)&0xFFF)<<4)), isa.ImmediateValueBase)
+	b = append(b, "bkpt 0x0000"...)
+	nn := int((op & 0xF) | (((op >> 8) & 0xFFF) << 4))
+	c := strconv.AppendUint([]byte{}, uint64(nn), 16)
+	b = append(b[:len(b)-len(c)], c[:]...)
 	return b
 }
 
@@ -250,7 +277,13 @@ func mul(b []byte, isa *Isa, op uint32, addr int) []byte {
 
 	// TODO: only armv6+
 	if inst == 2 && op&(1<<20) != 0 {
-		b = append(b, "undefined"...)
+		b = unknown(b, isa, op, 0)
+		return b
+	}
+
+	switch isa.Arch.idx {
+	case ARCH_IDX_ARMv2, ARCH_IDX_ARMv3:
+		b = unknown(b, isa, op, 0)
 		return b
 	}
 
@@ -475,41 +508,21 @@ var halfOpc = [2][4]string{
 	{"", "ldrh", "ldrsb", "ldrsh"},
 }
 
-func halfv4(b []byte, isa *Isa, op uint32, _ int) []byte {
-	inst := (op >> 5) & 3
-	l := (op >> 20) & 1
-
-	if inst == 0 {
-		b = append(b, "unknown half"...)
-		return b
-	}
-
-	if inst >= 2 {
-		l = 1
-	}
-
-	b = append(b, halfOpc[l][inst]...)
-	b = halfShared(b, isa, op, 0)
-
-	return b
-}
-
 func half(b []byte, isa *Isa, op uint32, _ int) []byte {
 	inst := (op >> 5) & 3
 	l := (op >> 20) & 1
 
+	if l == 0 && inst >= 2 && (isa.Arch.idx < ARCH_IDX_ARMv5te) {
+		b = append(b, isa.UndefinedOutput...)
+		return b
+	}
+
 	if inst == 0 {
-		b = append(b, "unknown half"...)
+		b = append(b, isa.UndefinedOutput...)
 		return b
 	}
 
 	b = append(b, halfOpc[l][inst]...)
-	b = halfShared(b, isa, op, 0)
-
-	return b
-}
-
-func halfShared(b []byte, isa *Isa, op uint32, _ int) []byte {
 	rn := (op >> 16) & 0xF
 	pre := (op>>24)&1 != 0
 
@@ -521,7 +534,7 @@ func halfShared(b []byte, isa *Isa, op uint32, _ int) []byte {
 		}
 
 		offset = append(offset, ", "...)
-		offset = appendImm(offset, ofs, isa.ImmediateValueBase)
+		offset = appendImm(offset, ofs, 10)
 	} else {
 		offset = append(offset, ", "...)
 
@@ -598,9 +611,11 @@ func sdtShared(b []byte, isa *Isa, op uint32, offset []byte) []byte {
 	return b
 }
 
+var shifts = [4]string{"lsl", "lsr", "asr", "ror"}
+
 func sdtReg(b []byte, isa *Isa, op uint32, addr int) []byte {
 	pld := op>>28 == 0xF
-	if pld {
+	if pld && isa.Arch.idx == ARCH_IDX_ARMv5te {
 		// TODO: confirm and correct pld
 		b = append(b, "pld"...)
 		return b
@@ -634,7 +649,7 @@ func sdtReg(b []byte, isa *Isa, op uint32, addr int) []byte {
 		offset = append(offset, ", "...)
 		offset = append(offset, shifts[sType]...)
 		offset = append(offset, ' ')
-		offset = appendImm(offset, is, isa.ImmediateValueBase)
+		offset = appendImm(offset, is, 10)
 	}
 
 	b = sdtShared(b, isa, op, offset)
@@ -644,7 +659,7 @@ func sdtReg(b []byte, isa *Isa, op uint32, addr int) []byte {
 
 func sdtImm(b []byte, isa *Isa, op uint32, addr int) []byte {
 	pld := op>>28 == 0xF
-	if pld {
+	if pld && isa.Arch.idx == ARCH_IDX_ARMv5te {
 		// TODO: confirm and correct pld
 		b = append(b, "pld"...)
 		return b

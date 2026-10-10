@@ -219,7 +219,7 @@ func thumbImm(b []byte, isa *Isa, op uint16, addr int) []byte {
 
 	b = append(b, rd...)
 	b = append(b, ", "...)
-	b = appendImm(b, nn, isa.ImmediateValueBase)
+	b = appendImm(b, nn, 10)
 	return b
 }
 
@@ -250,7 +250,7 @@ func thumbAdd(b []byte, isa *Isa, op uint16, addr int) []byte {
 	b = append(b, ", "...)
 
 	if isImm {
-		b = appendImm(b, int(n), isa.ImmediateValueBase)
+		b = appendImm(b, int(n), 10)
 	} else {
 		b = append(b, isa.RegisterNaming[n]...)
 	}
@@ -282,7 +282,7 @@ func thumbShift(b []byte, isa *Isa, op uint16, addr int) []byte {
 	b = append(b, ", "...)
 	b = append(b, rs...)
 	b = append(b, ", "...)
-	b = appendImm(b, int(offset), isa.ImmediateValueBase)
+	b = appendImm(b, int(offset), 10)
 	return b
 }
 
@@ -359,7 +359,7 @@ func thumbRelative(b []byte, isa *Isa, op uint16, addr int) []byte {
 	}
 
 	b = append(b, ", "...)
-	b = appendImm(b, nn, isa.ImmediateValueBase)
+	b = appendImm(b, nn, 10)
 
 	return b
 }
@@ -375,7 +375,7 @@ func thumbSp(b []byte, isa *Isa, op uint16, addr int) []byte {
 
 	b = append(b, isa.RegisterNaming[13]...)
 	b = append(b, ", "...)
-	b = appendImm(b, nn, isa.ImmediateValueBase)
+	b = appendImm(b, nn, 10)
 	return b
 }
 
@@ -433,7 +433,7 @@ func thumbSdtImm(b []byte, isa *Isa, op uint16, addr int) []byte {
 	b = append(b, ", ["...)
 	b = append(b, rb...)
 	b = append(b, ", "...)
-	b = appendImm(b, nn, isa.ImmediateValueBase)
+	b = appendImm(b, nn, 10)
 	b = append(b, "]"...)
 	return b
 }
@@ -453,7 +453,7 @@ func thumbSdtHalf(b []byte, isa *Isa, op uint16, addr int) []byte {
 	b = append(b, ", ["...)
 	b = append(b, rb...)
 	b = append(b, ", "...)
-	b = appendImm(b, nn, isa.ImmediateValueBase)
+	b = appendImm(b, nn, 10)
 	b = append(b, "]"...)
 	return b
 }
@@ -467,7 +467,7 @@ func thumbPcRel(b []byte, isa *Isa, op uint16, addr int) []byte {
 	b = append(b, ", ["...)
 	b = append(b, isa.RegisterNaming[15]...)
 	b = append(b, ", "...)
-	b = appendImm(b, nn, isa.ImmediateValueBase)
+	b = appendImm(b, nn, 10)
 	b = append(b, "]"...)
 	return b
 }
@@ -485,7 +485,7 @@ func thumbSpRel(b []byte, isa *Isa, op uint16, addr int) []byte {
 	b = append(b, ", ["...)
 	b = append(b, isa.RegisterNaming[13]...)
 	b = append(b, ", "...)
-	b = appendImm(b, nn, isa.ImmediateValueBase)
+	b = appendImm(b, nn, 10)
 	b = append(b, "]"...)
 	return b
 }

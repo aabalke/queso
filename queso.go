@@ -11,14 +11,14 @@ import (
 
 type Arch struct {
 	idx   int
-	name  string
+	Name  string
 	thumb bool
 }
 
 const ( // used for gating features
 	ARCH_IDX_ARMv2 = iota
 	ARCH_IDX_ARMv3
-	ARCH_IDX_ARMv4t
+	ARCH_IDX_ARMv4tm
 	ARCH_IDX_ARMv5te
 	ARCH_IDX_ARM_ANY
 )
@@ -26,10 +26,24 @@ const ( // used for gating features
 var (
 	ARCH_ARMv2   = Arch{ARCH_IDX_ARMv2, "armv2", false}
 	ARCH_ARMv3   = Arch{ARCH_IDX_ARMv3, "armv3", false}
-	ARCH_ARMv4t  = Arch{ARCH_IDX_ARMv4t, "armv4t", true}
+	ARCH_ARMv4tm = Arch{ARCH_IDX_ARMv4tm, "armv4tm", true}
 	ARCH_ARMv5te = Arch{ARCH_IDX_ARMv5te, "armv5te", true}
 	ARCH_ARM_ANY = Arch{ARCH_IDX_ARM_ANY, "arm_any", true}
 )
+
+var OrdersLookup = map[string]binary.ByteOrder{
+	"little": binary.LittleEndian,
+	"big":    binary.BigEndian,
+	"native": binary.NativeEndian,
+}
+
+var ArchLookup = map[string]Arch{
+	"armv2":   ARCH_ARMv2,
+	"armv3":   ARCH_ARMv3,
+	"armv4tm": ARCH_ARMv4tm,
+	"armv5te": ARCH_ARMv5te,
+	"arm_any": ARCH_ARM_ANY,
+}
 
 //"armv1"
 //"armv2"
@@ -69,10 +83,10 @@ type Isa struct {
 	Thumb, OutputAddress, OutputOpcode bool
 }
 
-func (isa *Isa) Decode(r io.Reader) []string {
+func (isa *Isa) Decode(r io.Reader) ([]string, error) {
 	bs, err := io.ReadAll(r)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("invalid input")
 	}
 
 	var (
@@ -91,7 +105,7 @@ func (isa *Isa) Decode(r io.Reader) []string {
 			formatters = FORMAT32_ARMv2
 		case ARCH_ARMv3:
 			formatters = FORMAT32_ARMv3
-		case ARCH_ARMv4t:
+		case ARCH_ARMv4tm:
 			formatters = FORMAT32_ARMv4t
 		case ARCH_ARMv5te:
 			formatters = FORMAT32_ARMv5te
@@ -107,9 +121,7 @@ func (isa *Isa) Decode(r io.Reader) []string {
 		unknown = INST_THUMB_UNKNOWN
 
 		if !isa.Arch.thumb {
-			return []string{
-				fmt.Sprintf("arm arch version %s does not support thumb instructions", isa.Arch.name),
-			}
+			return nil, fmt.Errorf(fmt.Sprintf("arm arch version %s does not support thumb instructions", isa.Arch.Name))
 		}
 
 		switch isa.Arch {
@@ -172,7 +184,7 @@ func (isa *Isa) Decode(r io.Reader) []string {
 		ends[i] = uint32(len(buf))
 	}
 
-	return convertBytesToStringArray(buf, ends)
+	return convertBytesToStringArray(buf, ends), nil
 }
 
 func convertBytesToStringArray(buf []byte, ends []uint32) []string {

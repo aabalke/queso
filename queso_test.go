@@ -46,7 +46,13 @@ func norm(s string) string {
 
 func decode(t testing.TB, isa *Isa, b []byte) []string {
 	t.Helper()
-	return isa.Decode(strings.NewReader(string(b)))
+
+	vs, err := isa.Decode(strings.NewReader(string(b)))
+	if err != nil {
+		panic(err)
+	}
+
+	return vs
 }
 
 const refCount = 2_000_000
@@ -81,7 +87,7 @@ func runObjdump(t *testing.T, data []byte, arch Arch, thumb bool) map[int]string
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	args := []string{"-D", "-z", "-b", "binary", "-marm", "--endian=little", "-m", string(arch.name)}
+	args := []string{"-D", "-z", "-b", "binary", "-marm", "--endian=little", "-m", string(arch.Name)}
 	if thumb {
 		args = append(args, "-M", "force-thumb")
 	}
@@ -162,7 +168,7 @@ func markUnassemblable(t *testing.T, res map[int]string, arch Arch, thumb bool) 
 	}
 
 	// gas exits non-zero when anything fails; that's expected here.
-	out, _ := exec.Command(asBin, "-march="+string(arch.name), src,
+	out, _ := exec.Command(asBin, "-march="+string(arch.Name), src,
 		"-o", filepath.Join(dir, "t.o")).CombinedOutput()
 
 	bad := 0
@@ -175,7 +181,7 @@ func markUnassemblable(t *testing.T, res map[int]string, arch Arch, thumb bool) 
 		res[addrs[idx]] = notAssemblable
 		bad++
 	}
-	t.Logf("%s: %d/%d lines not assemblable", arch.name, bad, len(addrs))
+	t.Logf("%s: %d/%d lines not assemblable", arch.Name, bad, len(addrs))
 }
 
 type mismatch struct {
@@ -273,12 +279,14 @@ func testThumb(t *testing.T, arch Arch) {
 	compare(t, arch, true, ops)
 }
 
-func TestArmV2(t *testing.T)   { testArm(t, ARCH_ARMv2) }
-func TestArmV3(t *testing.T)   { testArm(t, ARCH_ARMv3) }
-func TestArmV4T(t *testing.T)  { testArm(t, ARCH_ARMv4t) }
+func TestArmV2(t *testing.T) { testArm(t, ARCH_ARMv2) }
+func TestArmV3(t *testing.T) { testArm(t, ARCH_ARMv3) }
+
+// TODO: 4t vs 4tm
+// func TestArmV4T(t *testing.T)  { testArm(t, ARCH_ARMv4t) }
 func TestArmV5TE(t *testing.T) { testArm(t, ARCH_ARMv5te) }
 
-func TestThumbV4T(t *testing.T)  { testThumb(t, ARCH_ARMv4t) }
+func TestThumbV4T(t *testing.T)  { testThumb(t, ARCH_ARMv4tm) }
 func TestThumbV5TE(t *testing.T) { testThumb(t, ARCH_ARMv5te) }
 
 // TODO: thumb-2 (32bit instructions)

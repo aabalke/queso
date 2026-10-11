@@ -1,0 +1,114 @@
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <script src="wasm_exec.js"></script>
+    <script>
+        const go = new Go();
+        WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject).then((result) => {
+            go.run(result.instance);
+        });
+    </script>
+</head>
+
+<body>
+    <h1>🧀 queso: an arm32 disassembler</h1>
+    <h2>prioritizing historical accuracy for decomps, emulation and retro computing</h2>
+    <p>queso is a arm32 disassembler written in golang. I originally wrote this to interop with my emulation projects,
+        allowing for easier debugging. It allows for different arm32 versions, and when compared to binutils objdump and
+        other disassemblers, tries to be historically accurate on older arm32 versions.</p>
+    <p>available as a cli tools as well.</p>
+
+    <div>
+        <input class="queso input" id="thumb" type="checkbox">
+        <label for="thumb">thumb</label>
+    </div>
+    <div>
+        <input class="queso input" id="little" type="checkbox">
+        <label for="little">little endian</label>
+    </div>
+    <div>
+        <input class="queso input" id="output address" type="checkbox">
+        <label for="output address">output address</label>
+    </div>
+    <div>
+        <input class="queso input" id="output opcode" type="checkbox">
+        <label for="output opcode">output opcode</label>
+    </div>
+
+    <div>
+        <p>register naming</p>
+        <div>
+            <input class="queso input" type="radio" id="conventional" name="register naming" value="conventional" />
+            <label for="conventional">conventional (lr, pc)</label>
+        </div>
+        <div>
+            <input class="queso input" type="radio" id="general" name="register naming" value="general" />
+            <label for="general">general (r14, r15)</label>
+        </div>
+        <div>
+            <input class="queso input" type="radio" id="custom" name="register naming" value="custom" />
+            <label for="custom">custom</label>
+            <div>
+                <label>r0</label><input class="queso input" type="text" size="1" value="r0" id="r0" name="r0">
+                <label>r1</label><input class="queso input" type="text" size="1" value="r1" id="r1" name="r1">
+                <label>r2</label><input class="queso input" type="text" size="1" value="r2" id="r2" name="r2">
+                <label>r3</label><input class="queso input" type="text" size="1" value="r3" id="r3" name="r3">
+                <label>r4</label><input class="queso input" type="text" size="1" value="r4" id="r4" name="r4">
+                <label>r5</label><input class="queso input" type="text" size="1" value="r5" id="r5" name="r5">
+                <label>r6</label><input class="queso input" type="text" size="1" value="r6" id="r6" name="r6">
+                <label>r7</label><input class="queso input" type="text" size="1" value="r7" id="r7" name="r7">
+                <label>r8</label><input class="queso input" type="text" size="1" value="r8" id="r8" name="r8">
+                <label>r9</label><input class="queso input" type="text" size="1" value="r9" id="r9" name="r9">
+                <label>r10</label><input class="queso input" type="text" size="1" value="r10" id="r10" name="r10">
+                <label>r11</label><input class="queso input" type="text" size="1" value="r11" id="r11" name="r11">
+                <label>r12</label><input class="queso input" type="text" size="1" value="r12" id="r12" name="r12">
+                <label>r13</label><input class="queso input" type="text" size="1" value="r13" id="r13" name="r13">
+                <label>r14</label><input class="queso input" type="text" size="1" value="r14" id="r14" name="r14">
+                <label>r15</label><input class="queso input" type="text" size="1" value="r15" id="r15" name="r15">
+            </div>
+        </div>
+    </div>
+
+    <div id="architecture version">
+        <p>architecture version</p>
+        <input class="queso input" type="radio" id="arm_any" name="architecture version" value="arm_any" />
+        <label for="arm_any">arm_any</label>
+    </div>
+    <div>
+        <input class="queso input" type="radio" id="armv2" name="architecture version" value="armv2" />
+        <label for="armv2">armv2</label>
+    </div>
+
+    <div>
+        <input class="queso input" type="radio" id="armv3" name="architecture version" value="armv3" />
+        <label for="armv3">armv3 (3D0)</label>
+    </div>
+    <div>
+        <input class="queso input" type="radio" id="armv4tm" name="architecture version" value="armv4tm" />
+        <label for="armv4tm">armv4tm (GBA / NDS ARM7)</label>
+    </div>
+    <div>
+        <input class="queso input" type="radio" id="armv5te" name="architecture version" value="armv5te" />
+        <label for="armv5te">armv5te (NDS ARM9)</label>
+    </div>
+    </div>
+
+    <h1>input:</h1>
+    <div>
+        <p>Open File</p>
+        <input class="queso input" type="file" id="file input" value="open file">
+    </div>
+    <div>
+        <p>Hexidecimal Input</p>
+        <textarea class="queso input" type="area" id="hex input" name="hex input" value="" placeholder=""></textarea>
+    </div>
+
+    <h1>output:</h1>
+    <div id="disassembly"></div>
+
+</body>
+
+<script src="queso.js"></script>
+
+</html>

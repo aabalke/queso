@@ -8,15 +8,11 @@ queso is a arm32 disassembler written in golang. I originally wrote this to inte
 
 ## Webpage
 
-
-
 # Features
 - Supports specific arm32 versions (armv2, armv3, armv4t, and armv5te)
 - Supports Arm and Thumb instructions
-- Supports Big and Little Endian
+- Supports Big and Little Order / Endianness
 - Supports General and Convention Register Names (r15 vs pc) (and Custom!)
-
-# Notes
 - Uses Unified Assembler Language (UAL) syntax
 
 # AI disclosure

@@ -13,19 +13,6 @@ import (
 
 const version = "0.0.1"
 
-var orders = map[string]binary.ByteOrder{
-	"little": binary.LittleEndian,
-	"big":    binary.BigEndian,
-	"native": binary.NativeEndian,
-}
-
-var arch = map[string]queso.Arch{
-	"armv2":   queso.ARCH_ARMv2,
-	"armv3":   queso.ARCH_ARMv3,
-	"armv4t":  queso.ARCH_ARMv4t,
-	"armv5te": queso.ARCH_ARMv5te,
-}
-
 func main() {
 	var (
 		versionPtr   = flag.Bool("version", false, "get version")
@@ -35,11 +22,13 @@ func main() {
 		thumbPtr     = flag.Bool("thumb", false, "force thumb")
 		orderPtr     = flag.String("order", "little", "byte order / endianness (\"little\", \"big\", or \"native\")")
 		regsPtr      = flag.String("regs", "convention", "register names, \"convention\" (lr, pc), \"general\" (r14, r15) or custom comma separated values \"r0,r1,r2,specialr4,r5...\"")
-		archPtr      = flag.String("arch", "arm_any", "architecture version (\"arm_any\", \"armv2\", \"armv3\", \"armv4t\", \"armv5te\")")
+		archPtr      = flag.String("arch", "arm_any", "architecture version (\"arm_any\", \"armv2\", \"armv3\", \"armv4tm\", \"armv5te\")")
 		inputPtr     = flag.String("input", "", "input binary file path")
 		outputPtr    = flag.String("output", "", "output path")
 		undefinedPtr = flag.String("undefined", "unknown instruction", "output on undefined instruction")
 	)
+
+	// TODO: print help if no args
 
 	flag.Parse()
 
@@ -48,13 +37,13 @@ func main() {
 		return
 	}
 
-	order, ok := orders[strings.ToLower(*orderPtr)]
+	order, ok := queso.OrdersLookup[strings.ToLower(*orderPtr)]
 	if !ok {
 		fmt.Printf("order/endianness %s is not valid, using little\n", *orderPtr)
 		order = binary.LittleEndian
 	}
 
-	arch, ok := arch[strings.ToLower(*archPtr)]
+	arch, ok := queso.ArchLookup[strings.ToLower(*archPtr)]
 	if !ok {
 		fmt.Printf("arch version %s is not valid, using arm_any\n", *archPtr)
 		arch = queso.ARCH_ARM_ANY
@@ -104,12 +93,19 @@ func main() {
 	}
 
 	var asms []string
+	var err error
 	if *profilePtr {
 		StartProfiler()
-		asms = isa.Decode(f)
+		asms, err = isa.Decode(f)
+		if err != nil {
+			asms = []string{err.Error()}
+		}
 		EndProfiler()
 	} else {
-		asms = isa.Decode(f)
+		asms, err = isa.Decode(f)
+		if err != nil {
+			asms = []string{err.Error()}
+		}
 	}
 
 	var s []byte

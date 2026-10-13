@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"syscall/js"
 
@@ -22,13 +23,11 @@ func main() {
 	js.Global().Set("goApp", api)
 
 	isa = &queso.Isa{
-		Thumb:           false,
 		Order:           binary.LittleEndian,
 		RegisterNaming:  queso.ConventionNaming,
 		Arch:            queso.ARCH_ARM_ANY,
 		UndefinedOutput: "unknown instruction",
-		OutputAddress:   false,
-		OutputOpcode:    false,
+		Offset:          0x0,
 	}
 
 	js.Global().Get("document").Call("dispatchEvent",
@@ -67,6 +66,7 @@ func initHtml() {
 	doc.Call("getElementById", "conventional").Set("checked", isa.RegisterNaming == queso.ConventionNaming)
 	doc.Call("getElementById", "general").Set("checked", isa.RegisterNaming == queso.GeneralNaming)
 	doc.Call("getElementById", "hexinput").Set("checked", true)
+	doc.Call("getElementById", "offset_input").Set("value", strconv.FormatInt(int64(isa.Offset), 16))
 
 	custom := isa.RegisterNaming != queso.ConventionNaming && isa.RegisterNaming != queso.GeneralNaming
 
@@ -100,6 +100,10 @@ func UpdateIsa() {
 	isa.Thumb = doc.Call("getElementById", "thumb").Get("checked").Bool()
 	isa.OutputAddress = doc.Call("getElementById", "output address").Get("checked").Bool()
 	isa.OutputOpcode = doc.Call("getElementById", "output opcode").Get("checked").Bool()
+
+	offsetValue := doc.Call("getElementById", "offset_input").Get("value").String()
+	offset, _ := strconv.ParseUint(offsetValue, 16, 32)
+	isa.Offset = int(offset)
 
 	little := doc.Call("getElementById", "little").Get("checked").Bool()
 	if little {

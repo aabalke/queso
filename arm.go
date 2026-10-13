@@ -242,7 +242,7 @@ func br(b []byte, isa *Isa, op uint32, addr int) []byte {
 		b = append(b, ' ')
 	}
 
-	b = appendAddr(b, addr, nn)
+	b = appendAddr(b, int(addr), isa.Offset, nn)
 	return b
 }
 
@@ -534,7 +534,7 @@ func half(b []byte, isa *Isa, op uint32, _ int) []byte {
 		}
 
 		offset = append(offset, ", "...)
-		offset = appendImm(offset, ofs, 10)
+		offset = strconv.AppendInt(offset, int64(ofs), 10)
 	} else {
 		offset = append(offset, ", "...)
 
@@ -649,7 +649,7 @@ func sdtReg(b []byte, isa *Isa, op uint32, addr int) []byte {
 		offset = append(offset, ", "...)
 		offset = append(offset, shifts[sType]...)
 		offset = append(offset, ' ')
-		offset = appendImm(offset, is, 10)
+		offset = strconv.AppendInt(offset, int64(is), 10)
 	}
 
 	b = sdtShared(b, isa, op, offset)

@@ -2,7 +2,6 @@ package queso
 
 import (
 	"math/bits"
-	"strconv"
 )
 
 type HexImmediateBase int
@@ -58,28 +57,7 @@ type Formatter struct {
 	mask, match uint32
 }
 
-func appendImm(dst []byte, v int, base HexImmediateBase) []byte {
-	dst = append(dst, '#')
-	if base == HEX_BASE {
-		u := uint64(v)
-		if v < 0 {
-			if v < -10 {
-				dst = append(dst, "-0x"...)
-			}
-			u = uint64(-v)
-		} else {
-			if v >= 10 {
-				dst = append(dst, "0x"...)
-			}
-		}
-
-		return appendHex(dst, u)
-		//return strconv.AppendUint(dst, u, 16)
-	}
-	return strconv.AppendInt(dst, int64(v), 10)
-}
-
-func appendHex(dst []byte, v uint64) []byte {
+func appendHex(dst []byte, v uint32) []byte {
 	const digits = "0123456789abcdef"
 	const base = 16
 	var tmp [16]byte // max 64bit value would be 16bytes in ascii hex
@@ -125,10 +103,8 @@ func appendCond(b []byte, c uint32) []byte {
 	return b
 }
 
-func appendAddr(b []byte, addr, ofs int) []byte {
-	addr += ofs
-
+func appendAddr(b []byte, addr, absOffset, relOffset int) []byte {
 	b = append(b, "0x"...)
-	b = appendHex(b, uint64(uint32(addr)))
+	b = appendHex(b, uint32(addr+absOffset+relOffset))
 	return b
 }

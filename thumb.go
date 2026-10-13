@@ -116,7 +116,7 @@ func thumbUnknown(b []byte, isa *Isa, op uint16, addr int) []byte {
 func thumbB(b []byte, isa *Isa, op uint16, addr int) []byte {
 	nn := int(int16((op&0x7FF)<<5)>>4) + 4
 	b = append(b, "b "...)
-	b = appendAddr(b, addr, nn)
+	b = appendAddr(b, int(addr), isa.Offset, nn)
 	return b
 }
 
@@ -134,7 +134,7 @@ func thumbBkpt(b []byte, isa *Isa, op uint16, addr int) []byte {
 	if op&0xFF < 0x10 {
 		b = append(b, "0"...)
 	}
-	b = appendHex(b, uint64(op&0xFF))
+	b = appendHex(b, uint32(op&0xFF))
 	return b
 }
 
@@ -187,7 +187,7 @@ func thumbCondB(b []byte, isa *Isa, op uint16, addr int) []byte {
 	b = appendCond(b, uint32(op>>8)&0xF)
 	b = append(b, ' ')
 	nn := (int(int8(op&0xFF)) << 1) + 4
-	b = appendAddr(b, addr, nn)
+	b = appendAddr(b, int(addr), isa.Offset, nn)
 	return b
 }
 
@@ -219,7 +219,7 @@ func thumbImm(b []byte, isa *Isa, op uint16, addr int) []byte {
 
 	b = append(b, rd...)
 	b = append(b, ", "...)
-	b = appendImm(b, nn, 10)
+	b = strconv.AppendInt(b, int64(nn), 10)
 	return b
 }
 
@@ -250,7 +250,7 @@ func thumbAdd(b []byte, isa *Isa, op uint16, addr int) []byte {
 	b = append(b, ", "...)
 
 	if isImm {
-		b = appendImm(b, int(n), 10)
+		b = strconv.AppendInt(b, int64(n), 10)
 	} else {
 		b = append(b, isa.RegisterNaming[n]...)
 	}
@@ -282,7 +282,7 @@ func thumbShift(b []byte, isa *Isa, op uint16, addr int) []byte {
 	b = append(b, ", "...)
 	b = append(b, rs...)
 	b = append(b, ", "...)
-	b = appendImm(b, int(offset), 10)
+	b = strconv.AppendInt(b, int64(offset), 10)
 	return b
 }
 
@@ -359,7 +359,7 @@ func thumbRelative(b []byte, isa *Isa, op uint16, addr int) []byte {
 	}
 
 	b = append(b, ", "...)
-	b = appendImm(b, nn, 10)
+	b = strconv.AppendInt(b, int64(nn), 10)
 
 	return b
 }
@@ -375,7 +375,7 @@ func thumbSp(b []byte, isa *Isa, op uint16, addr int) []byte {
 
 	b = append(b, isa.RegisterNaming[13]...)
 	b = append(b, ", "...)
-	b = appendImm(b, nn, 10)
+	b = strconv.AppendInt(b, int64(nn), 10)
 	return b
 }
 
@@ -433,7 +433,7 @@ func thumbSdtImm(b []byte, isa *Isa, op uint16, addr int) []byte {
 	b = append(b, ", ["...)
 	b = append(b, rb...)
 	b = append(b, ", "...)
-	b = appendImm(b, nn, 10)
+	b = strconv.AppendInt(b, int64(nn), 10)
 	b = append(b, "]"...)
 	return b
 }
@@ -453,7 +453,7 @@ func thumbSdtHalf(b []byte, isa *Isa, op uint16, addr int) []byte {
 	b = append(b, ", ["...)
 	b = append(b, rb...)
 	b = append(b, ", "...)
-	b = appendImm(b, nn, 10)
+	b = strconv.AppendInt(b, int64(nn), 10)
 	b = append(b, "]"...)
 	return b
 }
@@ -467,7 +467,7 @@ func thumbPcRel(b []byte, isa *Isa, op uint16, addr int) []byte {
 	b = append(b, ", ["...)
 	b = append(b, isa.RegisterNaming[15]...)
 	b = append(b, ", "...)
-	b = appendImm(b, nn, 10)
+	b = strconv.AppendInt(b, int64(nn), 10)
 	b = append(b, "]"...)
 	return b
 }
@@ -485,7 +485,7 @@ func thumbSpRel(b []byte, isa *Isa, op uint16, addr int) []byte {
 	b = append(b, ", ["...)
 	b = append(b, isa.RegisterNaming[13]...)
 	b = append(b, ", "...)
-	b = appendImm(b, nn, 10)
+	b = strconv.AppendInt(b, int64(nn), 10)
 	b = append(b, "]"...)
 	return b
 }
@@ -554,11 +554,7 @@ func thumbCbz(b []byte, isa *Isa, op uint16, addr int) []byte {
 
 	b = append(b, rn...)
 	b = append(b, ", "...)
-
-	//b = appendAddr(b, nn, 0)
-	//b = append(b, ", "...)
-	//nn = 0
-	b = appendAddr(b, addr, nn)
+	b = appendAddr(b, int(addr), isa.Offset, nn)
 	return b
 }
 

@@ -237,8 +237,8 @@ func compare(t *testing.T, arch Arch, thumb bool, ops []uint32) {
 	}
 	sort.Slice(keys, func(a, b int) bool { return len(buckets[keys[a]]) > len(buckets[keys[b]]) })
 
-	instCnt := 1
-	mismatchesPerInst := 50
+	instCnt := 1000
+	mismatchesPerInst := 3
 
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "%d / %d mismatches (%.3f%%)\n", total, len(ops), 100*float64(total)/float64(len(ops)))

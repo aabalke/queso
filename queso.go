@@ -81,7 +81,7 @@ type Isa struct {
 	RegisterNaming                     RegisterNaming
 	UndefinedOutput                    string
 	Thumb, OutputAddress, OutputOpcode bool
-	Offset                             uint64
+	Offset                             int
 }
 
 func (isa *Isa) Decode(r io.Reader) ([]string, error) {
@@ -170,7 +170,7 @@ func (isa *Isa) Decode(r io.Reader) ([]string, error) {
 		}
 
 		if isa.OutputAddress {
-			buf = append(buf, fmt.Sprintf("0x%08X: ", i*w)...)
+			buf = append(buf, fmt.Sprintf("0x%08X: ", isa.Offset+(i*w))...)
 		}
 
 		if isa.OutputOpcode {

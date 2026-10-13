@@ -15,17 +15,18 @@ const version = "0.0.1"
 
 func main() {
 	var (
-		versionPtr   = flag.Bool("version", false, "get version")
-		profilePtr   = flag.Bool("profile", false, "run profiler")
-		addrPtr      = flag.Bool("addr", false, "output address with disassembly")
-		opcodePtr    = flag.Bool("opcode", false, "output opcode with disassembly")
-		thumbPtr     = flag.Bool("thumb", false, "force thumb")
-		orderPtr     = flag.String("order", "little", "byte order / endianness (\"little\", \"big\", or \"native\")")
-		regsPtr      = flag.String("regs", "convention", "register names, \"convention\" (lr, pc), \"general\" (r14, r15) or custom comma separated values \"r0,r1,r2,specialr4,r5...\"")
-		archPtr      = flag.String("arch", "arm_any", "architecture version (\"arm_any\", \"armv2\", \"armv3\", \"armv4tm\", \"armv5te\")")
-		inputPtr     = flag.String("input", "", "input binary file path")
-		outputPtr    = flag.String("output", "", "output path")
-		undefinedPtr = flag.String("undefined", "unknown instruction", "output on undefined instruction")
+		versionPtr    = flag.Bool("version", false, "get version")
+		profilePtr    = flag.Bool("profile", false, "run profiler")
+		addrPtr       = flag.Bool("addr", false, "output address with disassembly")
+		opcodePtr     = flag.Bool("opcode", false, "output opcode with disassembly")
+		thumbPtr      = flag.Bool("thumb", false, "force thumb")
+		orderPtr      = flag.String("order", "little", "byte order / endianness (\"little\", \"big\", or \"native\")")
+		regsPtr       = flag.String("regs", "convention", "register names, \"convention\" (lr, pc), \"general\" (r14, r15) or custom comma separated values \"r0,r1,r2,specialr4,r5...\"")
+		archPtr       = flag.String("arch", "arm_any", "architecture version (\"arm_any\", \"armv2\", \"armv3\", \"armv4tm\", \"armv5te\")")
+		inputPtr      = flag.String("input", "", "input binary file path")
+		outputPtr     = flag.String("output", "", "output path")
+		undefinedPtr  = flag.String("undefined", "unknown instruction", "output on undefined instruction")
+		addrOffsetPtr = flag.Int("offset", 0, "address offset")
 	)
 
 	// TODO: print help if no args
@@ -68,6 +69,7 @@ func main() {
 		OutputAddress:   *addrPtr,
 		OutputOpcode:    *opcodePtr,
 		UndefinedOutput: *undefinedPtr,
+		Offset:          *addrOffsetPtr,
 	}
 
 	var out *os.File

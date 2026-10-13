@@ -81,6 +81,7 @@ type Isa struct {
 	RegisterNaming                     RegisterNaming
 	UndefinedOutput                    string
 	Thumb, OutputAddress, OutputOpcode bool
+	Offset                             uint64
 }
 
 func (isa *Isa) Decode(r io.Reader) ([]string, error) {
@@ -121,7 +122,7 @@ func (isa *Isa) Decode(r io.Reader) ([]string, error) {
 		unknown = INST_THUMB_UNKNOWN
 
 		if !isa.Arch.thumb {
-			return nil, fmt.Errorf(fmt.Sprintf("arm arch version %s does not support thumb instructions", isa.Arch.Name))
+			return nil, fmt.Errorf("arm arch version %s does not support thumb instructions", isa.Arch.Name)
 		}
 
 		switch isa.Arch {
@@ -135,7 +136,7 @@ func (isa *Isa) Decode(r io.Reader) ([]string, error) {
 	}
 
 	if leftover := len(bs) & (w - 1); leftover != 0 {
-		panic(fmt.Sprintf("invalid byte cnt need mod %d, have rem %d", w, leftover))
+		return nil, fmt.Errorf("invalid byte cnt need mod %d, have rem %d", w, leftover)
 	}
 
 	// NOTE: start and end are used to only allocate strings once, removes per op allocations

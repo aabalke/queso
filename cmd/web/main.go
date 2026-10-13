@@ -1,9 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/binary"
+	"fmt"
 	"io"
-	"os"
 	"strings"
 	"syscall/js"
 
@@ -17,6 +18,7 @@ func main() {
 
 	api := js.Global().Get("Object").New()
 	api.Set("Decode", js.FuncOf(Decode))
+	api.Set("ProcessFileUpload", js.FuncOf(ProcessFileUpload))
 	js.Global().Set("goApp", api)
 
 	isa = &queso.Isa{
@@ -64,6 +66,7 @@ func initHtml() {
 	doc.Call("getElementById", "little").Set("checked", isa.Order == binary.LittleEndian)
 	doc.Call("getElementById", "conventional").Set("checked", isa.RegisterNaming == queso.ConventionNaming)
 	doc.Call("getElementById", "general").Set("checked", isa.RegisterNaming == queso.GeneralNaming)
+	doc.Call("getElementById", "hexinput").Set("checked", true)
 
 	custom := isa.RegisterNaming != queso.ConventionNaming && isa.RegisterNaming != queso.GeneralNaming
 
@@ -87,48 +90,8 @@ func initHtml() {
 			break
 		}
 	}
-}
 
-func Decode(this js.Value, args []js.Value) any {
-	//caller := args[0]
-
-	doc := js.Global().Get("document")
-
-	UpdateIsa()
-
-	hex := doc.Call("getElementById", "hex input").Get("value").String()
-
-	file := doc.Call("getElementById", "file input").Get("value").String()
-
-	var r io.Reader
-	if file != "" {
-		panic("unsetup file reader")
-		var err error
-		r, err = os.Open(file)
-		if err != nil {
-			doc.Call("getElementById", "disassembly").Set("textContent", "could not open file "+file)
-			doc.Call("getElementById", "file input").Set("value", "")
-			return nil
-		}
-
-		doc.Call("getElementById", "hex input").Set("value", "")
-
-	} else {
-		doc.Call("getElementById", "file input").Set("value", "")
-		r = NewInstReaderFromString(hex, isa.Thumb)
-	}
-
-	insts, err := isa.Decode(r)
-	if err != nil {
-		doc.Call("getElementById", "disassembly").Set("textContent", err.Error())
-		return nil
-	}
-
-	s := strings.Join(insts, "<br/>")
-	s = "<p>" + s + "</p>"
-	doc.Call("getElementById", "disassembly").Set("innerHTML", s)
-
-	return nil
+	// TODO: init values of additional options, offset etc etc
 }
 
 func UpdateIsa() {
@@ -180,4 +143,46 @@ func UpdateIsa() {
 			break
 		}
 	}
+}
+
+func Decode(this js.Value, args []js.Value) any {
+	doc := js.Global().Get("document")
+
+	UpdateIsa()
+
+	var r io.Reader
+	if isFileInput := js.Global().Get("isFileInput").Bool(); isFileInput {
+		r = bytes.NewReader(fileData)
+	} else {
+		hex := doc.Call("getElementById", "hex input").Get("value").String()
+		r = NewInstReaderFromString(hex, isa.Thumb)
+
+		doc.Call("getElementById", "file_input_src").Set("value", "")
+		fileData = []byte{}
+	}
+
+	insts, err := isa.Decode(r)
+	if err != nil {
+		doc.Call("getElementById", "disassembly").Set("textContent", err.Error())
+		return nil
+	}
+
+	s := strings.Join(insts, "\n")
+	doc.Call("getElementById", "disassembly").Set("innerHTML", s)
+
+	return nil
+}
+
+var fileData []byte
+
+func ProcessFileUpload(this js.Value, args []js.Value) any {
+	if len(args) < 2 {
+		return "missing args"
+	}
+	name := args[0].String()
+	arr := args[1]
+
+	fileData = make([]byte, arr.Get("length").Int())
+	js.CopyBytesToGo(fileData, arr)
+	return fmt.Sprintf("%s: %d bytes", name, len(fileData))
 }

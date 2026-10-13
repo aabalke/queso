@@ -1,4 +1,4 @@
-# 🧀 queso: arm32 disassembler
+# <img width="36" height="36" alt="icon" src="https://github.com/user-attachments/assets/ce40228a-b93b-4dee-8522-ac490d58192f" /> queso: arm32 disassembler
 
 queso is a arm32 disassembler written in golang. I originally wrote this to interop with my emulation projects, allowing for easier debugging. It allows for different arm32 versions, and when compared to binutils objdump and other disassemblers, tries to be historically accurate on older arm32 versions.
 

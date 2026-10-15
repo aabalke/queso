@@ -7,8 +7,6 @@ import (
 	"unsafe"
 )
 
-// TODO: add offset addr option
-
 type Arch struct {
 	idx   int
 	Name  string

@@ -47,7 +47,7 @@ func main() {
 	arch, ok := queso.ArchLookup[strings.ToLower(*archPtr)]
 	if !ok {
 		fmt.Printf("arch version %s is not valid, using arm_any\n", *archPtr)
-		arch = queso.ARCH_ARM_ANY
+		arch = queso.ARMv5TE
 	}
 
 	var registers queso.RegisterNaming

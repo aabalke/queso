@@ -25,7 +25,7 @@ func main() {
 	isa = &queso.Isa{
 		Order:           binary.LittleEndian,
 		RegisterNaming:  queso.ConventionNaming,
-		Arch:            queso.ARCH_ARM_ANY,
+		Arch:            queso.ARMv5TE,
 		UndefinedOutput: "unknown instruction",
 		Offset:          0x0,
 	}

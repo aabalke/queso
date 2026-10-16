@@ -11,7 +11,7 @@ import (
 //export decode
 func decode() C.int {
 	isa := queso.Isa{
-		Arch:           queso.ARCH_ARM_ANY,
+		Arch:           queso.ARMv5TE,
 		Order:          binary.LittleEndian,
 		RegisterNaming: queso.ConventionNaming,
 	}

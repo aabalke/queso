@@ -50,10 +50,9 @@ const (
 	INST_THUMB_SET
 	INST_THUMB_CPS
 	INST_THUMB_UNKNOWN
-	MAX_DECODER16_CNT
 )
 
-var FORMAT16_ARCH_ARM = []Formatter{
+var FormattersThumbv1 = []Formatter{
 	INST_THUMB_BRA:  {0xF800, 0xE000},
 	INST_THUMB_SWI:  {0xFF00, 0xDF00},
 	INST_THUMB_BPT:  {0xFF00, 0xBE00},
@@ -80,7 +79,34 @@ var FORMAT16_ARCH_ARM = []Formatter{
 	INST_THUMB_CPS:  {0xFFE8, 0xB660},
 }
 
-var decoders16 = []func(b []byte, isa *Isa, op uint16, addr int) []byte{
+var FormattersThumbv2 = []Formatter{ // TODO: Need to setup
+	INST_THUMB_BRA:  {0xF800, 0xE000},
+	INST_THUMB_SWI:  {0xFF00, 0xDF00},
+	INST_THUMB_BPT:  {0xFF00, 0xBE00},
+	INST_THUMB_HI:   {0xFC00, 0x4400},
+	INST_THUMB_CBR:  {0xF000, 0xD000},
+	INST_THUMB_ALU:  {0xFC00, 0x4000},
+	INST_THUMB_IMM:  {0xE000, 0x2000},
+	INST_THUMB_ADD:  {0xF800, 0x1800},
+	INST_THUMB_SHI:  {0xE000, 0x0000},
+	INST_THUMB_PUS:  {0xF600, 0xB400},
+	INST_THUMB_BLK:  {0xF000, 0xC000},
+	INST_THUMB_REL:  {0xF000, 0xA000},
+	INST_THUMB_SP:   {0xFF00, 0xB000},
+	INST_THUMB_PCR:  {0xF800, 0x4800},
+	INST_THUMB_SDTR: {0xF000, 0x5000},
+	INST_THUMB_SDTI: {0xE000, 0x6000},
+	INST_THUMB_SDTH: {0xF000, 0x8000},
+	INST_THUMB_SPR:  {0xF000, 0x9000},
+	INST_THUMB_EXT:  {0xFF00, 0xB200},
+	INST_THUMB_REV:  {0xFF00, 0xBA00},
+	INST_THUMB_CBZ:  {0xF500, 0xB100},
+	INST_THUMB_IT:   {0xFF00, 0xBF00},
+	INST_THUMB_SET:  {0xFFF7, 0xB650},
+	INST_THUMB_CPS:  {0xFFE8, 0xB660},
+}
+
+var decodersT1 = []func(b []byte, isa *Isa, op uint16, addr int) []byte{
 	INST_THUMB_BRA:     thumbB,
 	INST_THUMB_SWI:     thumbSvc,
 	INST_THUMB_BPT:     thumbBkpt,

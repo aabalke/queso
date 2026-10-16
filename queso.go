@@ -7,40 +7,79 @@ import (
 	"unsafe"
 )
 
-type Arch struct {
-	idx   int
-	Name  string
-	thumb bool
+type Architecture struct {
+	Name            string
+	ArmVersion      ArmVersion
+	ThumbVersion    ThumbVersion
+	EnhancedDsp     EnhancedDspFeature
+	Formatters      []Formatter
+	ThumbFormatters []Formatter
+	LongMultiply    bool
 }
 
-const ( // used for gating features
-	ARCH_IDX_ARMv2 = iota
-	ARCH_IDX_ARMv3
-	ARCH_IDX_ARMv4tm
-	ARCH_IDX_ARMv5te
-	ARCH_IDX_ARM_ANY
-)
+var ArchLookup = map[string]Architecture{
+	"armv2":     ARMv2,
+	"armv3":     ARMv3,
+	"armv3m":    ARMv3M,
+	"armv4xm":   ARMv4xM,
+	"armv4":     ARMv4,
+	"armv4txm":  ARMv4TxM,
+	"armv4t":    ARMv4T,
+	"armv5xm":   ARMv5xM,
+	"armv5":     ARMv5,
+	"armv5txm":  ARMv5TxM,
+	"armv5t":    ARMv5T,
+	"armv5texp": ARMv5TExP,
+	"armv5te":   ARMv5TE,
+}
 
 var (
-	ARCH_ARMv2   = Arch{ARCH_IDX_ARMv2, "armv2", false}
-	ARCH_ARMv3   = Arch{ARCH_IDX_ARMv3, "armv3", false}
-	ARCH_ARMv4tm = Arch{ARCH_IDX_ARMv4tm, "armv4tm", true}
-	ARCH_ARMv5te = Arch{ARCH_IDX_ARMv5te, "armv5te", true}
-	ARCH_ARM_ANY = Arch{ARCH_IDX_ARM_ANY, "arm_any", true}
+	ARMv2     = Architecture{"ARMv2", ArmVersion2, ThumbVersionNone, EnhancedDspNone, FormattersArmv2, nil, false}
+	ARMv3     = Architecture{"ARMv3", ArmVersion3, ThumbVersionNone, EnhancedDspNone, FormattersArmv3, nil, false}
+	ARMv3M    = Architecture{"ARMv3M", ArmVersion3, ThumbVersionNone, EnhancedDspNone, FormattersArmv3, nil, true}
+	ARMv4xM   = Architecture{"ARMv4xM", ArmVersion4, ThumbVersionNone, EnhancedDspNone, FormattersArmv4, nil, false}
+	ARMv4     = Architecture{"ARMv4", ArmVersion4, ThumbVersionNone, EnhancedDspNone, FormattersArmv4, nil, true}
+	ARMv4TxM  = Architecture{"ARMv4TxM", ArmVersion4, ThumbVersion1, EnhancedDspNone, FormattersArmv4, FormattersThumbv1, false}
+	ARMv4T    = Architecture{"ARMv4T", ArmVersion4, ThumbVersion1, EnhancedDspNone, FormattersArmv4, FormattersThumbv1, true}
+	ARMv5xM   = Architecture{"ARMv5xM", ArmVersion5, ThumbVersionNone, EnhancedDspNone, FormattersArmv5, nil, false}
+	ARMv5     = Architecture{"ARMv5", ArmVersion5, ThumbVersionNone, EnhancedDspNone, FormattersArmv5, nil, true}
+	ARMv5TxM  = Architecture{"ARMv5TxM", ArmVersion5, ThumbVersion2, EnhancedDspNone, FormattersArmv5, FormattersThumbv2, false}
+	ARMv5T    = Architecture{"ARMv5T", ArmVersion5, ThumbVersion2, EnhancedDspNone, FormattersArmv5, FormattersThumbv2, true}
+	ARMv5TExP = Architecture{"ARMv5TExP", ArmVersion5, ThumbVersion2, EnhancedDsp5TExP, FormattersArmv5, FormattersThumbv2, true}
+	ARMv5TE   = Architecture{"ARMv5TE", ArmVersion5, ThumbVersion2, EnhancedDsp, FormattersArmv5, FormattersThumbv2, true}
+)
+
+type ArmVersion int
+
+const (
+	ArmVersionNone ArmVersion = iota
+	ArmVersion1
+	ArmVersion2
+	ArmVersion3
+	ArmVersion4
+	ArmVersion5
+)
+
+type ThumbVersion int
+
+const (
+	ThumbVersionNone ThumbVersion = iota
+	ThumbVersion1
+	ThumbVersion2
+)
+
+type EnhancedDspFeature int
+
+const (
+	EnhancedDspNone EnhancedDspFeature = iota
+	EnhancedDsp
+	EnhancedDsp5TExP
 )
 
 var OrdersLookup = map[string]binary.ByteOrder{
 	"little": binary.LittleEndian,
 	"big":    binary.BigEndian,
 	"native": binary.NativeEndian,
-}
-
-var ArchLookup = map[string]Arch{
-	"armv2":   ARCH_ARMv2,
-	"armv3":   ARCH_ARMv3,
-	"armv4tm": ARCH_ARMv4tm,
-	"armv5te": ARCH_ARMv5te,
-	"arm_any": ARCH_ARM_ANY,
 }
 
 //"armv1"
@@ -74,7 +113,7 @@ var ArchLookup = map[string]Arch{
 //"arm_any"
 
 type Isa struct {
-	Arch                               Arch
+	Arch                               Architecture
 	Order                              binary.ByteOrder
 	RegisterNaming                     RegisterNaming
 	UndefinedOutput                    string
@@ -98,38 +137,25 @@ func (isa *Isa) Decode(r io.Reader) ([]string, error) {
 	if !isa.Thumb {
 		w = 4
 		unknown = INST_UNKNOWN
-
-		switch isa.Arch {
-		case ARCH_ARMv2:
-			formatters = FORMAT32_ARMv2
-		case ARCH_ARMv3:
-			formatters = FORMAT32_ARMv3
-		case ARCH_ARMv4tm:
-			formatters = FORMAT32_ARMv4t
-		case ARCH_ARMv5te:
-			formatters = FORMAT32_ARMv5te
-		default:
-			formatters = FORMAT32_ARM
+		if isa.Arch.Formatters == nil {
+			return nil, fmt.Errorf("arm arch version %s does not support arm instructions", isa.Arch.Name)
 		}
 
+		formatters = isa.Arch.Formatters
 		decoderFunc = func(b []byte, isa *Isa, decoder Decoder, op uint32, addr int) []byte {
-			return decoders32[decoder](b, isa, op, addr)
+			return DecodersArm[decoder](b, isa, op, addr)
 		}
 	} else {
 		w = 2
 		unknown = INST_THUMB_UNKNOWN
 
-		if !isa.Arch.thumb {
+		if isa.Arch.ThumbFormatters == nil {
 			return nil, fmt.Errorf("arm arch version %s does not support thumb instructions", isa.Arch.Name)
 		}
 
-		switch isa.Arch {
-		default:
-			formatters = FORMAT16_ARCH_ARM
-		}
-
+		formatters = isa.Arch.ThumbFormatters
 		decoderFunc = func(b []byte, isa *Isa, decoder Decoder, op uint32, addr int) []byte {
-			return decoders16[decoder](b, isa, uint16(op), addr)
+			return decodersT1[decoder](b, isa, uint16(op), addr)
 		}
 	}
 
@@ -172,11 +198,7 @@ func (isa *Isa) Decode(r io.Reader) ([]string, error) {
 		}
 
 		if isa.OutputOpcode {
-			if isa.Thumb {
-				buf = append(buf, fmt.Sprintf("%04X: ", v)...)
-			} else {
-				buf = append(buf, fmt.Sprintf("%08X: ", v)...)
-			}
+			buf = append(buf, fmt.Sprintf("%08X: ", v)...)
 		}
 
 		buf = decoderFunc(buf, isa, decoder, v, i*w)

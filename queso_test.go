@@ -30,7 +30,7 @@ import (
 // architectures." - binutils gas. Since this projects goal is to accurately disassemble
 // emulated, and decomped arm binaries, hlt will not be included.
 
-func newIsa(arch Arch, thumb bool) *Isa {
+func newIsa(arch Architecture, thumb bool) *Isa {
 	return &Isa{
 		Arch:           arch,
 		Order:          binary.LittleEndian,
@@ -80,7 +80,7 @@ func normRef(s string) string {
 	return norm(s)
 }
 
-func runObjdump(t *testing.T, data []byte, arch Arch, thumb bool) map[int]string {
+func runObjdump(t *testing.T, data []byte, arch Architecture, thumb bool) map[int]string {
 	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "in.bin")
@@ -130,7 +130,7 @@ func isUndefinedText(s string) bool {
 
 // markUnassemblable runs every disassembled line through arm-none-eabi-as
 // for the same arch and replaces the text of lines gas rejects.
-func markUnassemblable(t *testing.T, res map[int]string, arch Arch, thumb bool) {
+func markUnassemblable(t *testing.T, res map[int]string, arch Architecture, thumb bool) {
 	t.Helper()
 
 	addrs := make([]int, 0, len(res))
@@ -189,7 +189,7 @@ type mismatch struct {
 	got, want string
 }
 
-func compare(t *testing.T, arch Arch, thumb bool, ops []uint32) {
+func compare(t *testing.T, arch Architecture, thumb bool, ops []uint32) {
 	w := 4
 	if thumb {
 		w = 2
@@ -252,7 +252,7 @@ func compare(t *testing.T, arch Arch, thumb bool, ops []uint32) {
 	t.Error(sb.String())
 }
 
-func testArm(t *testing.T, arch Arch) {
+func testArm(t *testing.T, arch Architecture) {
 	r := rand.New(rand.NewSource(1))
 	ops := make([]uint32, refCount)
 	for i := range ops {
@@ -266,7 +266,7 @@ func testArm(t *testing.T, arch Arch) {
 	compare(t, arch, false, ops)
 }
 
-func testThumb(t *testing.T, arch Arch) {
+func testThumb(t *testing.T, arch Architecture) {
 	ops := make([]uint32, 0, 65536)
 	for i := range 65536 {
 		// 0b11101 / 0b11110 / 0b11111 prefixes start 32-bit Thumb-2 encodings; skip
@@ -279,29 +279,15 @@ func testThumb(t *testing.T, arch Arch) {
 	compare(t, arch, true, ops)
 }
 
-func TestArmV2(t *testing.T) { testArm(t, ARCH_ARMv2) }
-func TestArmV3(t *testing.T) { testArm(t, ARCH_ARMv3) }
+// func TestARMv2a(t *testing.T) { testArm(t, ARMv2a) }
+func TestArmARMv2(t *testing.T)   { testArm(t, ARMv2) }
+func TestArmARMv3(t *testing.T)   { testArm(t, ARMv3) }
+func TestArmARMv3M(t *testing.T)  { testArm(t, ARMv3M) }
+func TestArmARMv4(t *testing.T)   { testArm(t, ARMv4) }
+func TestArmARMv4T(t *testing.T)  { testArm(t, ARMv4T) }
+func TestArmARMv5(t *testing.T)   { testArm(t, ARMv5) }
+func TestArmARMv5T(t *testing.T)  { testArm(t, ARMv5T) }
+func TestArmARMv5TE(t *testing.T) { testArm(t, ARMv5TE) }
 
-// TODO: 4t vs 4tm
-// func TestArmV4T(t *testing.T)  { testArm(t, ARCH_ARMv4t) }
-func TestArmV5TE(t *testing.T) { testArm(t, ARCH_ARMv5te) }
-
-func TestThumbV4T(t *testing.T)  { testThumb(t, ARCH_ARMv4tm) }
-func TestThumbV5TE(t *testing.T) { testThumb(t, ARCH_ARMv5te) }
-
-// TODO: thumb-2 (32bit instructions)
-
-//func TestThumb2(t *testing.T) {
-//	arch := ARCH_ARM_ANY
-//	ops := make([]uint32, 0, (1<<11)*3)
-//
-//	tops := []uint32{0b11101 << 11, 0b11110 << 11, 0b11111 << 11}
-//
-//	for _, top := range tops {
-//		for i := range uint32(1 << 11) {
-//			ops = append(ops, uint32(top|i))
-//		}
-//	}
-//
-//	compare(t, arch, true, ops)
-//}
+func TestThumbARMv4T(t *testing.T) { testThumb(t, ARMv4T) }
+func TestThumbARMv5T(t *testing.T) { testThumb(t, ARMv5T) }

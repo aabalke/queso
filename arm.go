@@ -8,18 +8,18 @@ import (
 const (
 	INST_SVC Decoder = iota
 	INST_NV          // TODO: need to get nv figured out
-	INST_EXT
+	// INST_EXT
 	INST_BKP
 	INST_CRT
 	INST_COP2
 	INST_BRA
 	INST_BRX
-	INST_SAT
-	INST_SAT16
-	INST_USA
-	INST_PACK
-	INST_REV
-	INST_MOVT
+	// INST_SAT
+	// INST_SAT16
+	// INST_USA
+	// INST_PACK
+	// INST_REV
+	// INST_MOVT
 	INST_SDT_REG
 	INST_SDT_IMM
 	INST_BLK
@@ -55,7 +55,7 @@ var FormattersArmv2 = []Formatter{
 	INST_CRT:           {0x0F00_0010, 0x0E00_0010},
 	INST_CDP:           {0x0F00_0010, 0x0E00_0000},
 	INST_CDT:           {0x0E00_0000, 0x0C00_0000},
-	INST_NV:            {0xF000_0000, 0xF000_0000}, // should exist? v2 has nv
+	INST_NV:            {0xF000_0000, 0xF000_0000},
 }
 
 var FormattersArmv3 = []Formatter{
@@ -80,7 +80,6 @@ var FormattersArmv3 = []Formatter{
 
 var FormattersArmv4 = []Formatter{
 	INST_SVC:           {0x0F00_0000, 0x0F00_0000},
-	INST_BKP:           {0xFFF0_00F0, 0xE120_0070},
 	INST_BRA:           {0x0E00_0000, 0x0A00_0000},
 	INST_BRX:           {0x0FFF_FF00, 0x012F_FF00},
 	INST_UND:           {0x0E00_0010, 0x0600_0010},
@@ -185,16 +184,16 @@ var DecodersArm = []func(b []byte, isa *Isa, op uint32, addr int) []byte{
 	INST_MRS:           mrs,
 	INST_MSR:           msr,
 	INST_CDP:           cdp,
-	INST_EXT:           ext,
-	INST_SAT:           sat,
-	INST_SAT16:         sat16,
-	INST_USA:           usad,
-	INST_PACK:          pack,
-	INST_REV:           rev,
-	INST_CDT:           cdt,
-	INST_COP2:          cop2,
-	INST_MOVT:          movt,
-	INST_NV:            nv,
+	// INST_EXT:           ext,
+	// INST_SAT:           sat,
+	// INST_SAT16:         sat16,
+	// INST_USA:           usad,
+	// INST_PACK:          pack,
+	// INST_REV:           rev,
+	INST_CDT:  cdt,
+	INST_COP2: cop2,
+	// INST_MOVT:          movt,
+	INST_NV: nv,
 }
 
 func unknown(b []byte, isa *Isa, op uint32, addr int) []byte {
@@ -263,9 +262,15 @@ func br(b []byte, isa *Isa, op uint32, addr int) []byte {
 
 	switch {
 	case op>>28 == 0xF:
+
+		if isa.Arch.ArmVersion < ArmVersion5 {
+			return unknown(b, isa, op, addr)
+		}
+
 		nn += int((op>>24)&1) * 2
 		b = append(b, "blx "...)
 	case op&(1<<24) != 0:
+
 		b = append(b, "bl"...)
 		b = appendCond(b, op>>28)
 		b = append(b, ' ')
@@ -284,10 +289,18 @@ func bx(b []byte, isa *Isa, op uint32, addr int) []byte {
 
 	switch inst := (op >> 4) & 0xF; inst {
 	case 1:
+		if isa.Arch.ArmVersion < ArmVersion5 || isa.Arch.ThumbVersion != ThumbVersionNone {
+			return unknown(b, isa, op, addr)
+		}
+
 		b = append(b, "bx"...)
 	case 2:
 		b = append(b, "bxj"...)
 	case 3:
+		if isa.Arch.ArmVersion < ArmVersion5 {
+			return unknown(b, isa, op, addr)
+		}
+
 		b = append(b, "blx"...)
 	default:
 	}
@@ -308,9 +321,7 @@ func mul(b []byte, isa *Isa, op uint32, addr int) []byte {
 
 	inst := (op >> 21) & 7
 
-	// TODO: umaal only armv6+
-
-	if inst >= 2 && !isa.Arch.LongMultiply {
+	if inst == 2 || (inst >= 3 && !isa.Arch.LongMultiply) {
 		b = unknown(b, isa, op, 0)
 		return b
 	}
@@ -540,7 +551,7 @@ func half(b []byte, isa *Isa, op uint32, _ int) []byte {
 	inst := (op >> 5) & 3
 	l := (op >> 20) & 1
 
-	if l == 0 && inst >= 2 && (isa.Arch.ArmVersion < ArmVersion5) {
+	if l == 0 && inst >= 2 && isa.Arch.EnhancedDsp == EnhancedDsp {
 		b = append(b, isa.UndefinedOutput...)
 		return b
 	}
@@ -600,33 +611,40 @@ func half(b []byte, isa *Isa, op uint32, _ int) []byte {
 func sdtShared(b []byte, isa *Isa, op uint32, offset []byte) []byte {
 	pre := (op>>24)&1 != 0
 	rn := isa.RegisterNaming[(op>>16)&0xF]
-	rd := isa.RegisterNaming[(op>>12)&0xF]
 
-	if load := (op>>20)&1 != 0; load {
-		b = append(b, "ldr"...)
+	if pld := op&0xFD70_0000 == 0xF550_0000; pld {
+		b = append(b, "pld "...)
 	} else {
-		b = append(b, "str"...)
-	}
 
-	if byte := (op>>22)&1 != 0; byte {
-		b = append(b, 'b')
-	}
+		if load := (op>>20)&1 != 0; load {
+			b = append(b, "ldr"...)
+		} else {
+			b = append(b, "str"...)
+		}
 
-	if !pre && (op>>21)&1 != 0 {
-		b = append(b, 't')
-	}
+		if byte := (op>>22)&1 != 0; byte {
+			b = append(b, 'b')
+		}
 
-	b = appendCond(b, op>>28)
-	b = append(b, ' ')
-	b = append(b, rd...)
-	b = append(b, ", "...)
+		if !pre && (op>>21)&1 != 0 {
+			b = append(b, 't')
+		}
+
+		b = appendCond(b, op>>28)
+		b = append(b, ' ')
+
+		rd := isa.RegisterNaming[(op>>12)&0xF]
+		b = append(b, rd...)
+		b = append(b, ", "...)
+
+	}
 
 	if pre {
 		b = append(b, '[')
 		b = append(b, rn...)
 		b = append(b, offset...)
 		b = append(b, ']')
-		if wb := (op>>21)&1 != 0 && pre; wb {
+		if wb := (op>>21)&1 != 0; wb {
 			b = append(b, '!')
 		}
 	} else {
@@ -642,14 +660,6 @@ func sdtShared(b []byte, isa *Isa, op uint32, offset []byte) []byte {
 var shifts = [4]string{"lsl", "lsr", "asr", "ror"}
 
 func sdtReg(b []byte, isa *Isa, op uint32, addr int) []byte {
-	pld := op>>28 == 0xF
-
-	if pld && isa.Arch.ArmVersion < ArmVersion5 {
-		// TODO: confirm and correct pld
-		b = append(b, "pld"...)
-		return b
-	}
-
 	offset := make([]byte, 0, 32)
 
 	is := int((op >> 7) & 0x1F)
@@ -687,13 +697,6 @@ func sdtReg(b []byte, isa *Isa, op uint32, addr int) []byte {
 }
 
 func sdtImm(b []byte, isa *Isa, op uint32, addr int) []byte {
-	pld := op>>28 == 0xF
-	if pld && isa.Arch.ArmVersion < ArmVersion5 {
-		// TODO: confirm and correct pld
-		b = append(b, "pld"...)
-		return b
-	}
-
 	offset := make([]byte, 0, 32)
 	ofs := int(op & 0xFFF)
 
@@ -887,7 +890,7 @@ func crt(b []byte, isa *Isa, op uint32, addr int) []byte {
 		rd = "apsr_nzcv"
 	}
 
-	if m2 := op>>28 == 0xF; m2 {
+	if m2 := op>>28 == 0xF; m2 && isa.Arch.ArmVersion >= ArmVersion5 {
 		if op&(1<<20) != 0 {
 			b = append(b, "mrc2"...)
 		} else {
@@ -970,7 +973,7 @@ func msr(b []byte, isa *Isa, op uint32, addr int) []byte {
 }
 
 func cdp(b []byte, isa *Isa, op uint32, addr int) []byte {
-	if cond := op >> 28; cond == 0xF {
+	if cond := op >> 28; cond == 0xF && isa.Arch.ArmVersion >= ArmVersion5 {
 		b = append(b, "cdp2"...)
 	} else {
 		b = append(b, "cdp"...)
@@ -1222,7 +1225,7 @@ func cdt(b []byte, isa *Isa, op uint32, addr int) []byte {
 	ofs := (op & 0xFF)
 	ldc := (op>>20)&1 != 0
 
-	if op>>28 == 0xF {
+	if op>>28 == 0xF && isa.Arch.ArmVersion >= ArmVersion5 {
 		if ldc {
 			b = append(b, "ldc2"...)
 		} else {
@@ -1300,7 +1303,11 @@ func cop2(b []byte, isa *Isa, op uint32, addr int) []byte {
 		cm  = (op >> 0) & 0xF
 	)
 
-	if m2 := op>>28 == 0xF; m2 {
+	if isa.Arch.EnhancedDsp != EnhancedDsp {
+		return unknown(b, isa, op, addr)
+	}
+
+	if m2 := op>>28 == 0xF; m2 && isa.Arch.ArmVersion > ArmVersion5 {
 		if op&(1<<20) != 0 {
 			b = append(b, "mrrc2 "...)
 		} else {

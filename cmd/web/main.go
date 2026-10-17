@@ -158,8 +158,14 @@ func Decode(this js.Value, args []js.Value) any {
 	if isFileInput := js.Global().Get("isFileInput").Bool(); isFileInput {
 		r = bytes.NewReader(fileData)
 	} else {
-		hex := doc.Call("getElementById", "hex input").Get("value").String()
-		r = NewInstReaderFromString(hex, isa.Thumb)
+		var err error
+		hex := []string{doc.Call("getElementById", "hex input").Get("value").String()}
+		r, err = queso.NewInstReaderFromStrings(hex)
+		if err != nil {
+			doc.Call("getElementById", "disassembly").Set("textContent", err.Error())
+			return nil
+		}
+		//r = NewInstReaderFromString(hex, isa.Thumb)
 
 		doc.Call("getElementById", "file_input_src").Set("value", "")
 		fileData = []byte{}

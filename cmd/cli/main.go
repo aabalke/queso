@@ -22,7 +22,7 @@ func main() {
 		thumbPtr      = flag.Bool("thumb", false, "force thumb")
 		orderPtr      = flag.String("order", "little", "byte order / endianness (\"little\", \"big\", or \"native\")")
 		regsPtr       = flag.String("regs", "convention", "register names, \"convention\" (lr, pc), \"general\" (r14, r15) or custom comma separated values \"r0,r1,r2,specialr4,r5...\"")
-		archPtr       = flag.String("arch", "arm_any", "architecture version (\"arm_any\", \"armv2\", \"armv3\", \"armv4tm\", \"armv5te\")")
+		archPtr       = flag.String("arch", "ARMv5TE", "architecture version (\"armv2\", \"armv3\", \"armv4tm\", \"armv5te\")")
 		inputPtr      = flag.String("input", "", "input binary file path")
 		outputPtr     = flag.String("output", "", "output path")
 		undefinedPtr  = flag.String("undefined", "unknown instruction", "output on undefined instruction")
@@ -83,19 +83,21 @@ func main() {
 	}
 
 	var f io.Reader
+	var err error
 	if *inputPtr != "" {
-		var err error
 		f, err = os.Open(*inputPtr)
 		if err != nil {
 			panic("could not open input file path")
 		}
 
 	} else {
-		f = NewArgsUint32(flag.Args(), *thumbPtr)
+		f, err = queso.NewInstReaderFromStrings(flag.Args())
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	var asms []string
-	var err error
 	if *profilePtr {
 		StartProfiler()
 		asms, err = isa.Decode(f)

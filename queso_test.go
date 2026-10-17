@@ -128,8 +128,7 @@ func isUndefinedText(s string) bool {
 		strings.HasPrefix(s, "hlt")
 }
 
-// markUnassemblable runs every disassembled line through arm-none-eabi-as
-// for the same arch and replaces the text of lines gas rejects.
+// 2nd pass against assembler to confirm it is not assemblable (cleans up objdump disassembly)
 func markUnassemblable(t *testing.T, res map[int]string, arch Architecture, thumb bool) {
 	t.Helper()
 
@@ -140,22 +139,22 @@ func markUnassemblable(t *testing.T, res map[int]string, arch Architecture, thum
 	sort.Ints(addrs)
 
 	var sb strings.Builder
-	sb.WriteString(".syntax unified\n") // line 1
+	sb.WriteString(".syntax unified\n")
 	if thumb {
-		sb.WriteString(".thumb\n") // line 2
+		sb.WriteString(".thumb\n")
 	} else {
-		sb.WriteString(".arm\n") // line 2
+		sb.WriteString(".arm\n")
 	}
 	const header = 2 // instruction i lives on line header+1+i
 
 	for _, a := range addrs {
 		txt := res[a]
-		if i := strings.IndexAny(txt, ";@"); i >= 0 { // strip objdump comments
+		if i := strings.IndexAny(txt, ";@"); i >= 0 { // strip comments
 			txt = txt[:i]
 		}
 		txt = strings.TrimSpace(txt)
 		if isUndefinedText(txt) {
-			txt = "" // keep line numbering aligned
+			txt = ""
 		}
 		sb.WriteString(txt)
 		sb.WriteByte('\n')
@@ -189,34 +188,77 @@ type mismatch struct {
 	got, want string
 }
 
-func compare(t *testing.T, arch Architecture, thumb bool, ops []uint32) {
-	w := 4
-	if thumb {
-		w = 2
+// isThumbWide reports whether hw1 starts a 32-bit Thumb instruction
+// (the BL/BLX prefix on v4T/v5T, any 32-bit encoding on Thumb-2).
+func isThumbWide(hw1 uint16) bool {
+	switch hw1 >> 11 {
+	case 0b11101, 0b11110, 0b11111:
+		return true
 	}
-	data := make([]byte, 0, len(ops)*w)
-	for _, op := range ops {
-		if thumb {
-			data = binary.LittleEndian.AppendUint16(data, uint16(op))
-		} else {
+	return false
+}
+
+// encode serialises ops and returns the byte offset of each op.
+// Thumb: ops <= 0xFFFF are 16-bit, otherwise hw1<<16|hw2.
+func encode(t *testing.T, ops []uint32, thumb bool) (data []byte, offs []int) {
+	t.Helper()
+	offs = make([]int, len(ops))
+
+	if !thumb {
+		data = make([]byte, 0, len(ops)*4)
+		for i, op := range ops {
+			offs[i] = i * 4
 			data = binary.LittleEndian.AppendUint32(data, op)
 		}
+		return
 	}
+
+	data = make([]byte, 0, len(ops)*4)
+	for i, op := range ops {
+		offs[i] = len(data)
+		if op>>16 == 0 {
+			hw := uint16(op)
+			if isThumbWide(hw) {
+				t.Fatalf("op %d: %04X is a 32-bit prefix, give it as hw1<<16|hw2", i, hw)
+			}
+			data = binary.LittleEndian.AppendUint16(data, hw)
+			continue
+		}
+		hw1, hw2 := uint16(op>>16), uint16(op)
+		if !isThumbWide(hw1) {
+			t.Fatalf("op %d: %08X has a 32-bit layout but %04X is not a wide prefix", i, op, hw1)
+		}
+		// halfwords are stored in order: hw1 first, each little-endian
+		data = binary.LittleEndian.AppendUint16(data, hw1)
+		data = binary.LittleEndian.AppendUint16(data, hw2)
+	}
+	return
+}
+
+func compare(t *testing.T, arch Architecture, thumb bool, ops []uint32) {
+	data, offs := encode(t, ops, thumb)
 
 	isa := newIsa(arch, thumb)
 	ref := runObjdump(t, data, arch, thumb)
 	got := decode(t, isa, data)
 
+	if len(got) != len(ops) {
+		t.Fatalf("decoder returned %d instructions, expected %d (wide thumb handled as one?)",
+			len(got), len(ops))
+	}
+
 	buckets := map[string][]mismatch{}
 	total := 0
 
 	for i, op := range ops {
-		want, ok := ref[i*w]
+		want, ok := ref[offs[i]]
 		if !ok {
-			continue
+			continue // objdump desynced or skipped this address
 		}
 
 		wantN, gotN := normRef(want), norm(got[i])
+
+		//fmt.Printf("OP %08X, got %s, want %s\n", op, gotN, wantN)
 
 		if isUndefinedText(wantN) {
 			continue
@@ -246,7 +288,14 @@ func compare(t *testing.T, arch Architecture, thumb bool, ops []uint32) {
 		ms := buckets[k]
 		fmt.Fprintf(&sb, "  [%s] %d mismatches:\n", k, len(ms))
 		for _, m := range ms[:min(mismatchesPerInst, len(ms))] {
-			fmt.Fprintf(&sb, "    %08X\n      got : %s\n      want: %s\n", m.op, m.got, m.want)
+			if thumb && m.op>>16 == 0 {
+				fmt.Fprintf(&sb, "    %04X\n", m.op)
+			} else if thumb {
+				fmt.Fprintf(&sb, "    %04X %04X\n", m.op>>16, m.op&0xFFFF)
+			} else {
+				fmt.Fprintf(&sb, "    %08X\n", m.op)
+			}
+			fmt.Fprintf(&sb, "      got : %s\n      want: %s\n", m.got, m.want)
 		}
 	}
 	t.Error(sb.String())
@@ -291,3 +340,23 @@ func TestArmARMv5TE(t *testing.T) { testArm(t, ARMv5TE) }
 
 func TestThumbARMv4T(t *testing.T) { testThumb(t, ARMv4T) }
 func TestThumbARMv5T(t *testing.T) { testThumb(t, ARMv5T) }
+
+func TestThumbBL(t *testing.T) {
+	arch := ARMv5TE
+	rng := rand.New(rand.NewSource(1))
+
+	ops := make([]uint32, 0, 200_000)
+	for range cap(ops) {
+
+		op := uint32(0xF000|rng.Intn(0x800)) << 16
+
+		for _, suffix := range []uint32{0xF800, 0xE800} {
+			op2 := suffix | uint32(rng.Intn(0x800))
+			if suffix == 0xE800 {
+				op2 &^= 1 // if unaligned, objdump splits into 2 instructions
+			}
+			ops = append(ops, op|op2)
+		}
+	}
+	compare(t, arch, true, ops)
+}

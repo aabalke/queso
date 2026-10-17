@@ -82,7 +82,7 @@ var OrdersLookup = map[string]binary.ByteOrder{
 	"native": binary.NativeEndian,
 }
 
-//"armv1"
+// objdump available versions
 //"armv2"
 //"armv2a"
 //"armv3"
@@ -135,27 +135,27 @@ func (isa *Isa) Decode(r io.Reader) ([]string, error) {
 	)
 
 	if !isa.Thumb {
-		w = 4
-		unknown = INST_UNKNOWN
 		if isa.Arch.Formatters == nil {
 			return nil, fmt.Errorf("arm arch version %s does not support arm instructions", isa.Arch.Name)
 		}
 
+		w = 4
+		unknown = INST_UNKNOWN
 		formatters = isa.Arch.Formatters
 		decoderFunc = func(b []byte, isa *Isa, decoder Decoder, op uint32, addr int) []byte {
 			return DecodersArm[decoder](b, isa, op, addr)
 		}
 	} else {
-		w = 2
-		unknown = INST_THUMB_UNKNOWN
 
 		if isa.Arch.ThumbFormatters == nil {
 			return nil, fmt.Errorf("arm arch version %s does not support thumb instructions", isa.Arch.Name)
 		}
 
+		w = 2
+		unknown = INST_THUMB_UNKNOWN
 		formatters = isa.Arch.ThumbFormatters
 		decoderFunc = func(b []byte, isa *Isa, decoder Decoder, op uint32, addr int) []byte {
-			return decodersT1[decoder](b, isa, uint16(op), addr)
+			return DecodersThumb[decoder](b, isa, uint16(op), addr)
 		}
 	}
 
@@ -165,44 +165,68 @@ func (isa *Isa) Decode(r io.Reader) ([]string, error) {
 
 	// NOTE: start and end are used to only allocate strings once, removes per op allocations
 	var (
-		cnt  = len(bs) / w
-		buf  = make([]byte, 0, cnt*256)
-		ends = make([]uint32, cnt)
-		ops  = make([]uint32, cnt)
+		cnt     = len(bs) / w
+		buf     = make([]byte, 0, cnt*256)
+		ends    = make([]uint32, 0, cnt)
+		instIdx = 0
 	)
 
-	for i := range cnt {
-		var v uint32
-		if w == 4 {
-			v = isa.Order.Uint32(bs[i*w:])
+	for currByte := 0; currByte < len(bs); {
+
+		doDecoding := true
+		addr := isa.Offset + currByte
+
+		var op uint32
+
+		var instWidth int
+		if w == 2 {
+			instWidth = 2
+			op = uint32(isa.Order.Uint16(bs[currByte:]))
+
+			if op&0xF800 == 0xF000 && currByte+4 <= len(bs) {
+				op2 := uint32(isa.Order.Uint16(bs[currByte+2:]))
+
+				if op2&0xE800 == 0xE800 {
+					var ok bool
+
+					op = (op << 16) | op2
+
+					buf = appendPrefixes(buf, isa, op, addr)
+					buf, ok = thumbBlLong(buf, isa, op, addr)
+					if ok {
+						instWidth = 4
+					}
+
+					// skip jump and read next instruction as normal instruction
+					doDecoding = false
+				}
+			}
 		} else {
-			v = uint32(isa.Order.Uint16(bs[i*w:]))
+			instWidth = 4
+			op = isa.Order.Uint32(bs[currByte:])
 		}
-		ops[i] = v
 
-		decoder := unknown
-		for j, desc := range formatters {
+		if doDecoding {
 
-			if desc.mask == 0 && desc.match == 0 {
-				continue
+			decoder := unknown
+			for j, desc := range formatters {
+
+				if unused := desc.mask == 0 && desc.match == 0; unused {
+					continue
+				}
+
+				if (op & desc.mask) == desc.match {
+					decoder = Decoder(j)
+					break
+				}
 			}
-
-			if (v & desc.mask) == desc.match {
-				decoder = Decoder(j)
-				break
-			}
+			buf = appendPrefixes(buf, isa, op, addr)
+			buf = decoderFunc(buf, isa, decoder, op, addr)
 		}
 
-		if isa.OutputAddress {
-			buf = append(buf, fmt.Sprintf("0x%08X: ", isa.Offset+(i*w))...)
-		}
-
-		if isa.OutputOpcode {
-			buf = append(buf, fmt.Sprintf("%08X: ", v)...)
-		}
-
-		buf = decoderFunc(buf, isa, decoder, v, i*w)
-		ends[i] = uint32(len(buf))
+		ends = append(ends, uint32(len(buf)))
+		currByte += instWidth
+		instIdx++
 	}
 
 	return convertBytesToStringArray(buf, ends), nil
@@ -221,4 +245,16 @@ func convertBytesToStringArray(buf []byte, ends []uint32) []string {
 	}
 
 	return s
+}
+
+func appendPrefixes(b []byte, isa *Isa, op uint32, addr int) []byte {
+	if isa.OutputAddress {
+		b = append(b, fmt.Sprintf("0x%08X: ", addr)...)
+	}
+
+	if isa.OutputOpcode {
+		b = append(b, fmt.Sprintf("%08X: ", op)...)
+	}
+
+	return b
 }

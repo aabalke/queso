@@ -14,11 +14,19 @@ type Architecture struct {
 	EnhancedDsp     EnhancedDspFeature
 	Formatters      []Formatter
 	ThumbFormatters []Formatter
-	LongMultiply    bool
+	Flags           uint32
 }
 
+const (
+	NO_FLAGS           = 0
+	ATOMIC_FLAG        = 1 << 0
+	LONG_MULTIPLY_FLAG = 1 << 1
+)
+
 var ArchLookup = map[string]Architecture{
+	"armv1":     ARMv1,
 	"armv2":     ARMv2,
+	"armv2a":    ARMv2a,
 	"armv3":     ARMv3,
 	"armv3m":    ARMv3M,
 	"armv4xm":   ARMv4xM,
@@ -34,19 +42,21 @@ var ArchLookup = map[string]Architecture{
 }
 
 var (
-	ARMv2     = Architecture{"ARMv2", ArmVersion2, ThumbVersionNone, EnhancedDspNone, FormattersArmv2, nil, false}
-	ARMv3     = Architecture{"ARMv3", ArmVersion3, ThumbVersionNone, EnhancedDspNone, FormattersArmv3, nil, false}
-	ARMv3M    = Architecture{"ARMv3M", ArmVersion3, ThumbVersionNone, EnhancedDspNone, FormattersArmv3, nil, true}
-	ARMv4xM   = Architecture{"ARMv4xM", ArmVersion4, ThumbVersionNone, EnhancedDspNone, FormattersArmv4, nil, false}
-	ARMv4     = Architecture{"ARMv4", ArmVersion4, ThumbVersionNone, EnhancedDspNone, FormattersArmv4, nil, true}
-	ARMv4TxM  = Architecture{"ARMv4TxM", ArmVersion4, ThumbVersion1, EnhancedDspNone, FormattersArmv4, FormattersThumbv1, false}
-	ARMv4T    = Architecture{"ARMv4T", ArmVersion4, ThumbVersion1, EnhancedDspNone, FormattersArmv4, FormattersThumbv1, true}
-	ARMv5xM   = Architecture{"ARMv5xM", ArmVersion5, ThumbVersionNone, EnhancedDspNone, FormattersArmv5, nil, false}
-	ARMv5     = Architecture{"ARMv5", ArmVersion5, ThumbVersionNone, EnhancedDspNone, FormattersArmv5, nil, true}
-	ARMv5TxM  = Architecture{"ARMv5TxM", ArmVersion5, ThumbVersion2, EnhancedDspNone, FormattersArmv5, FormattersThumbv2, false}
-	ARMv5T    = Architecture{"ARMv5T", ArmVersion5, ThumbVersion2, EnhancedDspNone, FormattersArmv5, FormattersThumbv2, true}
-	ARMv5TExP = Architecture{"ARMv5TExP", ArmVersion5, ThumbVersion2, EnhancedDsp5TExP, FormattersArmv5, FormattersThumbv2, true}
-	ARMv5TE   = Architecture{"ARMv5TE", ArmVersion5, ThumbVersion2, EnhancedDsp, FormattersArmv5, FormattersThumbv2, true}
+	ARMv1     = Architecture{"ARMv1", ArmVersion1, ThumbVersionNone, EnhancedDspNone, FormattersArmv1, nil, NO_FLAGS}
+	ARMv2     = Architecture{"ARMv2", ArmVersion2, ThumbVersionNone, EnhancedDspNone, FormattersArmv2, nil, NO_FLAGS}
+	ARMv2a    = Architecture{"ARMv2a", ArmVersion2, ThumbVersionNone, EnhancedDspNone, FormattersArmv2, nil, ATOMIC_FLAG}
+	ARMv3     = Architecture{"ARMv3", ArmVersion3, ThumbVersionNone, EnhancedDspNone, FormattersArmv3, nil, ATOMIC_FLAG}
+	ARMv3M    = Architecture{"ARMv3M", ArmVersion3, ThumbVersionNone, EnhancedDspNone, FormattersArmv3, nil, LONG_MULTIPLY_FLAG | ATOMIC_FLAG}
+	ARMv4xM   = Architecture{"ARMv4xM", ArmVersion4, ThumbVersionNone, EnhancedDspNone, FormattersArmv4, nil, ATOMIC_FLAG}
+	ARMv4     = Architecture{"ARMv4", ArmVersion4, ThumbVersionNone, EnhancedDspNone, FormattersArmv4, nil, LONG_MULTIPLY_FLAG | ATOMIC_FLAG}
+	ARMv4TxM  = Architecture{"ARMv4TxM", ArmVersion4, ThumbVersion1, EnhancedDspNone, FormattersArmv4, FormattersThumbv1, ATOMIC_FLAG}
+	ARMv4T    = Architecture{"ARMv4T", ArmVersion4, ThumbVersion1, EnhancedDspNone, FormattersArmv4, FormattersThumbv1, LONG_MULTIPLY_FLAG | ATOMIC_FLAG}
+	ARMv5xM   = Architecture{"ARMv5xM", ArmVersion5, ThumbVersionNone, EnhancedDspNone, FormattersArmv5, nil, ATOMIC_FLAG}
+	ARMv5     = Architecture{"ARMv5", ArmVersion5, ThumbVersionNone, EnhancedDspNone, FormattersArmv5, nil, LONG_MULTIPLY_FLAG | ATOMIC_FLAG}
+	ARMv5TxM  = Architecture{"ARMv5TxM", ArmVersion5, ThumbVersion2, EnhancedDspNone, FormattersArmv5, FormattersThumbv2, ATOMIC_FLAG}
+	ARMv5T    = Architecture{"ARMv5T", ArmVersion5, ThumbVersion2, EnhancedDspNone, FormattersArmv5, FormattersThumbv2, LONG_MULTIPLY_FLAG | ATOMIC_FLAG}
+	ARMv5TExP = Architecture{"ARMv5TExP", ArmVersion5, ThumbVersion2, EnhancedDsp5TExP, FormattersArmv5, FormattersThumbv2, LONG_MULTIPLY_FLAG | ATOMIC_FLAG}
+	ARMv5TE   = Architecture{"ARMv5TE", ArmVersion5, ThumbVersion2, EnhancedDsp, FormattersArmv5, FormattersThumbv2, LONG_MULTIPLY_FLAG | ATOMIC_FLAG}
 )
 
 type ArmVersion int

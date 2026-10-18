@@ -7,7 +7,7 @@ import (
 
 const (
 	INST_SVC Decoder = iota
-	INST_NV          // TODO: need to get nv figured out
+	INST_NV
 	// INST_EXT
 	INST_BKP
 	INST_CRT
@@ -39,6 +39,19 @@ const (
 	INST_QAL
 	INST_UNKNOWN
 )
+
+var FormattersArmv1 = []Formatter{
+	INST_SVC:           {0x0F00_0000, 0x0F00_0000},
+	INST_BRA:           {0x0E00_0000, 0x0A00_0000},
+	INST_UND:           {0x0E00_0010, 0x0600_0010},
+	INST_BLK:           {0x0E00_0000, 0x0800_0000},
+	INST_SDT_REG:       {0x0E00_0010, 0x0600_0000},
+	INST_SDT_IMM:       {0x0E00_0000, 0x0400_0000},
+	INST_ALU:           {0x0E00_0000, 0x0200_0000},
+	INST_ALU_SHIFT_REG: {0x0E00_0090, 0x0000_0010},
+	INST_ALU_SHIFT_IMM: {0x0E00_0010, 0x0000_0000},
+	INST_NV:            {0xF000_0000, 0xF000_0000},
+}
 
 var FormattersArmv2 = []Formatter{
 	INST_SVC:           {0x0F00_0000, 0x0F00_0000},
@@ -321,7 +334,7 @@ func mul(b []byte, isa *Isa, op uint32, addr int) []byte {
 
 	inst := (op >> 21) & 7
 
-	if inst == 2 || (inst >= 3 && !isa.Arch.LongMultiply) {
+	if inst == 2 || (inst >= 3 && isa.Arch.Flags&LONG_MULTIPLY_FLAG == 0) {
 		b = unknown(b, isa, op, 0)
 		return b
 	}
@@ -458,6 +471,10 @@ func clz(b []byte, isa *Isa, op uint32, addr int) []byte {
 }
 
 func swp(b []byte, isa *Isa, op uint32, addr int) []byte {
+	if isa.Arch.Flags&ATOMIC_FLAG == 0 {
+		return unknown(b, isa, op, addr)
+	}
+
 	rn := isa.RegisterNaming[(op>>16)&0xF]
 	rd := isa.RegisterNaming[(op>>12)&0xF]
 	rm := isa.RegisterNaming[(op>>0)&0xF]

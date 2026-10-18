@@ -328,8 +328,8 @@ func testThumb(t *testing.T, arch Architecture) {
 	compare(t, arch, true, ops)
 }
 
-// func TestARMv2a(t *testing.T) { testArm(t, ARMv2a) }
 func TestArmARMv2(t *testing.T)   { testArm(t, ARMv2) }
+func TestArmARMv2a(t *testing.T)  { testArm(t, ARMv2a) }
 func TestArmARMv3(t *testing.T)   { testArm(t, ARMv3) }
 func TestArmARMv3M(t *testing.T)  { testArm(t, ARMv3M) }
 func TestArmARMv4(t *testing.T)   { testArm(t, ARMv4) }

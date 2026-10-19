@@ -167,7 +167,6 @@ func thumbB(b []byte, isa *Isa, op uint16, addr int) []byte {
 
 func thumbSvc(b []byte, isa *Isa, op uint16, addr int) []byte {
 	b = append(b, "svc "...)
-	// TODO: this matches objdump, not sure if should be controllable
 	b = strconv.AppendUint(b, uint64(op&0xFF), 10)
 	return b
 }
@@ -231,7 +230,6 @@ func thumbHi(b []byte, isa *Isa, op uint16, addr int) []byte {
 }
 
 func thumbCondB(b []byte, isa *Isa, op uint16, addr int) []byte {
-	// TODO: should labels be abs or relative? +/- vs exact location
 	b = append(b, "b"...)
 	b = appendCond(b, uint32(op>>8)&0xF)
 	b = append(b, ' ')

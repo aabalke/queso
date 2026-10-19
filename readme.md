@@ -3,7 +3,7 @@
 queso is a arm32 disassembler written in golang. I originally wrote this to interop with my emulation projects, allowing for easier debugging. It allows for different arm32 versions, and when compared to binutils objdump and other disassemblers, tries to be historically accurate on older arm32 versions.
 
 # Features
-- Supports specific arm32 versions (armv2, armv3, armv4t, and armv5te)
+- Supports specific arm32 versions (ARMv1, ARMv2, ARMv2a, ARMv3, ARMv3M, ARMv4xM, ARMv4, ARMv4TxM, ARMv4T, ARMv5xM, ARMv5, ARMv5TxM, ARMv5T, ARMv5TExP, and ARMv5TE)
 - Supports Arm and Thumb instructions
 - Supports Big and Little Order / Endianness
 - Supports General and Convention Register Names (r15 vs pc) (and Custom!)
@@ -33,11 +33,8 @@ See releases for cli version.
 
 ## Webpage
 
-
 # Todos
 - Thumb2
-- Modern architecture versions
+- v6+ versions
 - Arm Classic
-
-# AI disclosure
-This project was written by a human; however test cases were originally written by AI.
+- streamable version, web with large files

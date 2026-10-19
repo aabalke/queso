@@ -861,8 +861,6 @@ func aluShiftImm(b []byte, isa *Isa, op uint32, _ int) []byte {
 
 		return b
 	}
-	//// TODO: NOP (MOV r0, r0)
-	//// TODO: shifts with mov are lsl, lsr, asr, and ror (rrx) separately
 }
 
 func alu(b []byte, isa *Isa, op uint32, _ int) []byte {

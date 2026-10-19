@@ -188,14 +188,9 @@ type mismatch struct {
 	got, want string
 }
 
-// isThumbWide reports whether hw1 starts a 32-bit Thumb instruction
-// (the BL/BLX prefix on v4T/v5T, any 32-bit encoding on Thumb-2).
-func isThumbWide(hw1 uint16) bool {
-	switch hw1 >> 11 {
-	case 0b11101, 0b11110, 0b11111:
-		return true
-	}
-	return false
+func isThumb32(op uint16) bool {
+	op >>= 11
+	return op == 0b11111 || op == 0b11110 || op == 0b11101
 }
 
 // encode serialises ops and returns the byte offset of each op.
@@ -218,14 +213,14 @@ func encode(t *testing.T, ops []uint32, thumb bool) (data []byte, offs []int) {
 		offs[i] = len(data)
 		if op>>16 == 0 {
 			hw := uint16(op)
-			if isThumbWide(hw) {
+			if isThumb32(hw) {
 				t.Fatalf("op %d: %04X is a 32-bit prefix, give it as hw1<<16|hw2", i, hw)
 			}
 			data = binary.LittleEndian.AppendUint16(data, hw)
 			continue
 		}
 		hw1, hw2 := uint16(op>>16), uint16(op)
-		if !isThumbWide(hw1) {
+		if !isThumb32(hw1) {
 			t.Fatalf("op %d: %08X has a 32-bit layout but %04X is not a wide prefix", i, op, hw1)
 		}
 		// halfwords are stored in order: hw1 first, each little-endian
@@ -253,18 +248,16 @@ func compare(t *testing.T, arch Architecture, thumb bool, ops []uint32) {
 	for i, op := range ops {
 		want, ok := ref[offs[i]]
 		if !ok {
-			continue // objdump desynced or skipped this address
+			continue
 		}
 
-		wantN, gotN := normRef(want), norm(got[i])
-
-		//fmt.Printf("OP %08X, got %s, want %s\n", op, gotN, wantN)
+		wantN := normRef(want)
 
 		if isUndefinedText(wantN) {
 			continue
 		}
 
-		if gotN != wantN {
+		if gotN := norm(got[i]); gotN != wantN {
 			total++
 			key := strings.Fields(wantN + " ?")[0]
 			buckets[key] = append(buckets[key], mismatch{op, gotN, wantN})

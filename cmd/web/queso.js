@@ -38,7 +38,6 @@ function toggleFileInput(enabled) {
     goApp.Decode();
 }
 
-
 fileInputSrc.addEventListener("change", async () => {
     const file = fileInputSrc.files[0];
     if (!file) return;
@@ -49,7 +48,7 @@ fileInputSrc.addEventListener("change", async () => {
     }
 
     const bytes = new Uint8Array(await file.arrayBuffer());
-    goApp.ProcessFileUpload(file.name, bytes);
+    goApp.ProcessFileBytes(bytes);
     goApp.Decode();
 });
 

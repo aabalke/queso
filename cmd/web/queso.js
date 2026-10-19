@@ -1,12 +1,18 @@
 document.addEventListener("goready", () => {
 
-    const inputs = document.getElementsByClassName("queso input")
+    const inputs = document.getElementsByClassName("queso_input")
 
     for (var i = 0; i < inputs.length; i++) {
         inputs[i].addEventListener("input", () => {
             goApp.Decode();
         });
     }
+
+    archInput = document.getElementById("arch_version")
+
+    archInput.addEventListener("change", () => {
+        goApp.Decode();
+    });
 });
 
 var isFileInput = false;
@@ -14,12 +20,15 @@ var fileInputSrc = document.getElementById("file_input_src")
 
 function toggleFileInput(enabled) {
 
-    var inputContainer = document.getElementById("hex_input_container")
+    var left = document.getElementById("left")
+    var gutter = document.getElementById("gutter")
 
     if (enabled) {
-        inputContainer.style.display = "none"
+        left.style.display = "none"
+        gutter.style.display = "none"
     } else {
-        inputContainer.style.display = "flex"
+        left.style.display = "flex"
+        gutter.style.display = "block"
     }
 
     fileInputSrc.disabled = !enabled
@@ -82,4 +91,28 @@ function toggleOptions() {
     }
 }
 
+const gutter = document.getElementById('gutter');
 
+gutter.addEventListener('pointerdown', (e) => {
+
+    e.preventDefault();
+    gutter.setPointerCapture(e.pointerId);
+
+    const onMove = (e) => {
+        const split = document.getElementById('split');
+        const left = document.getElementById('left');
+        const rect = split.getBoundingClientRect();
+        const x = e.clientX - rect.left - (gutter.offsetWidth);
+        const min = 100;
+        const max = rect.width - 100 - gutter.offsetWidth;
+        left.style.width = Math.min(Math.max(x, min), max) + 'px';
+    };
+
+    const onUp = () => {
+        gutter.removeEventListener('pointermove', onMove);
+        gutter.removeEventListener('pointerup', onUp);
+    };
+
+    gutter.addEventListener('pointermove', onMove);
+    gutter.addEventListener('pointerup', onUp);
+});

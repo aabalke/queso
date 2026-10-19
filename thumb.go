@@ -721,13 +721,17 @@ func thumbBlShort(b []byte, isa *Isa, op uint16, addr int) []byte {
 	isBlx := op&(1<<12) == 0
 	switch {
 	case !isBlx:
-		b = append(b, "bl lr, #"...)
+		b = append(b, "bl "...)
+		b = append(b, isa.RegisterNaming[14]...)
+		b = append(b, ", #"...)
 	case isa.Arch.ThumbVersion < ThumbVersion2 || bl&3 != 0:
 		// with blx has to be aligned
 		b = thumbUnknown(b, isa, 0, addr)
 		return b
 	default:
-		b = append(b, "blx lr, #"...)
+		b = append(b, "blx "...)
+		b = append(b, isa.RegisterNaming[14]...)
+		b = append(b, ", #"...)
 	}
 
 	b = strconv.AppendInt(b, bl, 10)

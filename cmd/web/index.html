@@ -8,125 +8,126 @@
         });
     </script>
 
-    <div id="options" style="border-style: solid; border-width: 1px; padding: 8px; margin: 8px;">
+    <div id="options" style="border: 1px solid; padding: 8px; margin: 8px;">
         <div id="options_header" style="display: flex; align-items: center; gap: 8px;" onclick="toggleOptions()">
             <div id="options_arrow" style="user-select: none;"></div>
             <h2 style="margin: 0; cursor: default; user-select: none;">options</h2>
         </div>
         <div id="options_container" style="display: flex; flex-wrap: wrap; gap: 8px;">
-            <div style="flex: 1 0 250px;">
+            <div style="flex: 1 0 250px; display: flex; flex-direction: column;">
                 <h3 style="margin: 0;">options</h3>
-                <div>
-                    <input class="queso input" id="thumb" type="checkbox">
-                    <label for="thumb">thumb</label>
-                </div>
-                <div>
-                    <input class="queso input" id="little" type="checkbox">
-                    <label for="little">little endian</label>
-                </div>
-                <div>
-                    <input class="queso input" id="output address" type="checkbox">
-                    <label for="output address">output address</label>
-                </div>
-                <div>
-                    <input class="queso input" id="output opcode" type="checkbox">
-                    <label for="output opcode">output opcode</label>
-                </div>
-                <label for="offset_input">address offset (hex)</label>
-                <input class="queso input" type="text" size="10" value="" id="offset_input" name="offset_input"
-                    style="font-family: monospace;">
+                <label>
+                    <input class="queso_input" id="thumb" type="checkbox">
+                    thumb
+                </label>
+                <label>
+                    <input class="queso_input" id="little" type="checkbox">
+                    little endian
+                </label>
+                <label>
+                    <input class="queso_input" id="output address" type="checkbox">
+                    output address
+                </label>
+                <label>
+                    <input class="queso_input" id="output opcode" type="checkbox">
+                    output opcode
+                </label>
+                <label>
+                    address offset (hex)
+                    <input class="queso_input" type="text" size="10" value="" id="offset_input"
+                        style="font-family: monospace;">
+                </label>
+
+                <label>
+                    architecture version
+                    <select id="arch_version">
+                        <option class="arch_version" value="armv1" id="armv1">ARMv1</option>
+                        <option class="arch_version" value="armv2" id="armv2">ARMv2</option>
+                        <option class="arch_version" value="armv2a" id="armv2a">ARMv2a</option>
+                        <option class="arch_version" value="armv3" id="armv3">ARMv3</option>
+                        <option class="arch_version" value="armv3m" id="armv3m">ARMv3M</option>
+                        <option class="arch_version" value="armv4xm" id="armv4xm">ARMv4xM</option>
+                        <option class="arch_version" value="armv4" id="armv4">ARMv4</option>
+                        <option class="arch_version" value="armv4txm" id="armv4txm">ARMv4TxM</option>
+                        <option class="arch_version" value="armv4t" id="armv4t">ARMv4T</option>
+                        <option class="arch_version" value="armv5xm" id="armv5xm">ARMv5xM</option>
+                        <option class="arch_version" value="armv5txm" id="armv5txm">ARMv5TxM</option>
+                        <option class="arch_version" value="armv5" id="armv5">ARMv5</option>
+                        <option class="arch_version" value="armv5t" id="armv5t">ARMv5T</option>
+                        <option class="arch_version" value="armv5texp" id="armv5texp">ARMv5TExP</option>
+                        <option class="arch_version" value="armv5te" id="armv5te">ARMv5TE</option>
+                    </select>
+                </label>
+
+
             </div>
-            <div id="inputmethod" style="flex: 1 0 250px;">
+            <div style="flex: 1 0 250px; display: flex; flex-direction: column;">
                 <h3 style="margin: 0;">input method</h3>
-                <div>
-                    <input class="queso input" type="radio" id="hexinput" name="inputmethod" value="hexinput"
+                <label>
+                    <input name="input_method" class="queso_input" type="radio" id="hexinput" value="hexinput"
                         onclick="toggleFileInput(false)" />
-                    <label for="hexinput">hex input</label>
-                </div>
-                <div>
-                    <input class="queso input" type="radio" id="fileinput" name="inputmethod" value="fileinput"
+                    hex input
+                </label>
+                <label>
+                    <input name="input_method" class="queso_input" type="radio" id="fileinput" value="fileinput"
                         onclick="toggleFileInput(true)" />
-                    <label for="fileinput">binary file input</label>
-                </div>
-                <input class="queso input" type="file" id="file_input_src" disabled>
+                    binary file input
+                </label>
+                <input class="queso_input" type="file" id="file_input_src" disabled>
             </div>
 
-            <div style="flex: 1 0 250px;">
+            <div style="flex: 1 0 250px; display: flex; flex-direction: column;">
                 <h3 style="margin: 0;">register naming</h3>
-                <div>
-                    <input class="queso input" type="radio" id="conventional" name="register naming"
+                <label>
+                    <input name="register_naming" class="queso_input" type="radio" id="conventional"
                         value="conventional" />
-                    <label for="conventional">conventional (lr, pc)</label>
-                </div>
-                <div>
-                    <input class="queso input" type="radio" id="general" name="register naming" value="general" />
-                    <label for="general">general (r14, r15)</label>
-                </div>
-                <div>
-                    <input class="queso input" type="radio" id="custom" name="register naming" value="custom" />
-                    <label for="custom">custom</label>
+                    conventional (lr, pc)
+                </label>
+                <label>
+                    <input name="register_naming" class="queso_input" type="radio" id="general" value="general" />
+                    general (r14, r15)
+                </label>
+                <label>
+                    <input name="register_naming" class="queso_input" type="radio" id="custom" value="custom" />
+                    custom
                     <div style="display: inline-flex; flex-wrap: wrap; gap: 8px;">
-                        <input class="queso input" type="text" size="1" value="r0" id="r0" name="r0">
-                        <input class="queso input" type="text" size="1" value="r1" id="r1" name="r1">
-                        <input class="queso input" type="text" size="1" value="r2" id="r2" name="r2">
-                        <input class="queso input" type="text" size="1" value="r3" id="r3" name="r3">
-                        <input class="queso input" type="text" size="1" value="r4" id="r4" name="r4">
-                        <input class="queso input" type="text" size="1" value="r5" id="r5" name="r5">
-                        <input class="queso input" type="text" size="1" value="r6" id="r6" name="r6">
-                        <input class="queso input" type="text" size="1" value="r7" id="r7" name="r7">
-                        <input class="queso input" type="text" size="1" value="r8" id="r8" name="r8">
-                        <input class="queso input" type="text" size="1" value="r9" id="r9" name="r9">
-                        <input class="queso input" type="text" size="1" value="r10" id="r10" name="r10">
-                        <input class="queso input" type="text" size="1" value="r11" id="r11" name="r11">
-                        <input class="queso input" type="text" size="1" value="r12" id="r12" name="r12">
-                        <input class="queso input" type="text" size="1" value="r13" id="r13" name="r13">
-                        <input class="queso input" type="text" size="1" value="r14" id="r14" name="r14">
-                        <input class="queso input" type="text" size="1" value="r15" id="r15" name="r15">
+                        <input class="queso_input" type="text" size="1" value="r0" id="r0">
+                        <input class="queso_input" type="text" size="1" value="r1" id="r1">
+                        <input class="queso_input" type="text" size="1" value="r2" id="r2">
+                        <input class="queso_input" type="text" size="1" value="r3" id="r3">
+                        <input class="queso_input" type="text" size="1" value="r4" id="r4">
+                        <input class="queso_input" type="text" size="1" value="r5" id="r5">
+                        <input class="queso_input" type="text" size="1" value="r6" id="r6">
+                        <input class="queso_input" type="text" size="1" value="r7" id="r7">
+                        <input class="queso_input" type="text" size="1" value="r8" id="r8">
+                        <input class="queso_input" type="text" size="1" value="r9" id="r9">
+                        <input class="queso_input" type="text" size="1" value="r10" id="r10">
+                        <input class="queso_input" type="text" size="1" value="r11" id="r11">
+                        <input class="queso_input" type="text" size="1" value="r12" id="r12">
+                        <input class="queso_input" type="text" size="1" value="r13" id="r13">
+                        <input class="queso_input" type="text" size="1" value="r14" id="r14">
+                        <input class="queso_input" type="text" size="1" value="r15" id="r15">
                     </div>
-                </div>
+                </label>
             </div>
 
-            <div id="architecture version" style="flex: 1 0 250px;">
-                <h3 style="margin: 0;">architecture version</h3>
-                <div>
-                    <input class="queso input" type="radio" id="arm_any" name="architecture version" value="arm_any" />
-                    <label for="arm_any">arm_any</label>
-                </div>
-                <div>
-                    <input class="queso input" type="radio" id="armv2" name="architecture version" value="armv2" />
-                    <label for="armv2">armv2</label>
-                </div>
-
-                <div>
-                    <input class="queso input" type="radio" id="armv3" name="architecture version" value="armv3" />
-                    <label for="armv3">armv3 (3D0)</label>
-                </div>
-                <div>
-                    <input class="queso input" type="radio" id="armv4tm" name="architecture version" value="armv4tm" />
-                    <label for="armv4tm">armv4tm (GBA / NDS ARM7)</label>
-                </div>
-                <div>
-                    <input class="queso input" type="radio" id="armv5te" name="architecture version" value="armv5te" />
-                    <label for="armv5te">armv5te (NDS ARM9)</label>
-                </div>
-            </div>
         </div>
     </div>
 
-    <div style="display: flex; gap: 32px; flex: 1; min-height: 0; padding: 8px; align-items: stretch;">
-        <div id="hex_input_container" style="flex: 1; min-width: 0;display: flex; flex-direction: column;">
-            <h2 style="margin: 0; margin-bottom: 16px;">hex input</h2>
-            <textarea class="queso input" id="hex input" name="hex input" autofocus
+    <div id="split" style="display: flex; flex: 1; min-height: 0; padding: 8px; align-items: stretch;">
+        <div id="left" style="min-width: 0; display: flex; flex-direction: column; width: 50%;">
+            <h2 style="margin: 0 0 0 0;">hex input</h2>
+            <textarea class="queso_input" id="hex_input" autofocus
                 placeholder="enter hex bytes (e.g. FFFFFFEA, 0EF0A0E1, 0600B0E8)"
-                style="font-family: monospace; flex: 1; min-height: 0; width: 100%; resize: none;"></textarea>
+                style="font-family: monospace; resize: none; width: 100%; flex: 1; border: 1px solid;"></textarea>
         </div>
 
-        <div style="flex: 2; min-width: 0; display: flex; flex-direction: column;">
-            <h2 style="margin: 0; margin-bottom: 16px;">output</h2>
-            <textarea id="disassembly"
-                style="font-family: monospace; flex: 1; min-height: 0; overflow: auto; border-style: solid; border-width: 1px; resize: none;"
-                disabled>
-            </textarea>
+        <div class="gutter" id="gutter" style="width: 16px; cursor: col-resize;"></div>
+
+        <div id="right" style="min-width: 0; display: flex; flex-direction: column; flex: 1;">
+            <h2 style="margin: 0 0 0 0;">output</h2>
+            <textarea id="disassembly" disabled
+                style="font-family: monospace; resize: none; width: 100%; flex: 1; border: 1px solid;"></textarea>
         </div>
     </div>
 

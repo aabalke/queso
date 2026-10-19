@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall/js"
@@ -82,17 +83,17 @@ func initHtml() {
 		}
 	}
 
-	archs := doc.Call("getElementsByName", "architecture version")
+	archs := doc.Call("getElementsByClassName", "arch_version")
 	for i := range archs.Length() {
 		arch := archs.Index(i)
-		if arch.Get("value").String() == isa.Arch.Name {
-			arch.Set("checked", true)
+		if arch.Get("value").String() == strings.ToLower(isa.Arch.Name) {
+			arch.Set("selected", true)
 			break
 		}
 	}
-
-	// TODO: init values of additional options, offset etc etc
 }
+
+var hexRegex = regexp.MustCompile(`[^0-9a-fA-F]+`)
 
 func UpdateIsa() {
 	doc := js.Global().Get("document")
@@ -102,11 +103,13 @@ func UpdateIsa() {
 	isa.OutputOpcode = doc.Call("getElementById", "output opcode").Get("checked").Bool()
 
 	offsetValue := doc.Call("getElementById", "offset_input").Get("value").String()
+	offsetValue = strings.ToLower(offsetValue)
+	offsetValue = strings.TrimPrefix(offsetValue, "0x")
+	offsetValue = hexRegex.ReplaceAllString(offsetValue, "")
 	offset, _ := strconv.ParseUint(offsetValue, 16, 32)
 	isa.Offset = int(offset)
 
-	little := doc.Call("getElementById", "little").Get("checked").Bool()
-	if little {
+	if little := doc.Call("getElementById", "little").Get("checked").Bool(); little {
 		isa.Order = binary.LittleEndian
 	} else {
 		isa.Order = binary.BigEndian
@@ -137,12 +140,9 @@ func UpdateIsa() {
 		isa.RegisterNaming = queso.ConventionNaming
 	}
 
-	archs := doc.Call("getElementsByName", "architecture version")
+	archs := doc.Call("getElementsByClassName", "arch_version")
 	for i := range archs.Length() {
-		arch := archs.Index(i)
-		if arch.Get("checked").Bool() {
-			// NOTE: better way of doing this? in perfect world shouldn't use
-			// "value" but everything is client side so maybe dont care
+		if arch := archs.Index(i); arch.Get("selected").Bool() {
 			isa.Arch = queso.ArchLookup[arch.Get("value").String()]
 			break
 		}
@@ -159,13 +159,12 @@ func Decode(this js.Value, args []js.Value) any {
 		r = bytes.NewReader(fileData)
 	} else {
 		var err error
-		hex := []string{doc.Call("getElementById", "hex input").Get("value").String()}
+		hex := []string{doc.Call("getElementById", "hex_input").Get("value").String()}
 		r, err = queso.NewInstReaderFromStrings(hex)
 		if err != nil {
 			doc.Call("getElementById", "disassembly").Set("textContent", err.Error())
 			return nil
 		}
-		//r = NewInstReaderFromString(hex, isa.Thumb)
 
 		doc.Call("getElementById", "file_input_src").Set("value", "")
 		fileData = []byte{}

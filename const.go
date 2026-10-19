@@ -4,13 +4,6 @@ import (
 	"math/bits"
 )
 
-type HexImmediateBase int
-
-const (
-	DEC_BASE HexImmediateBase = 10
-	HEX_BASE HexImmediateBase = 16
-)
-
 type RegisterNaming [16]string
 
 var GeneralNaming = RegisterNaming{

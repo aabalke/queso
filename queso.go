@@ -23,6 +23,24 @@ const (
 	LONG_MULTIPLY_FLAG = 1 << 1
 )
 
+var Archs = []string{
+	"ARMv1",
+	"ARMv2",
+	"ARMv2a",
+	"ARMv3",
+	"ARMv3M",
+	"ARMv4xM",
+	"ARMv4",
+	"ARMv4TxM",
+	"ARMv4T",
+	"ARMv5xM",
+	"ARMv5",
+	"ARMv5TxM",
+	"ARMv5T",
+	"ARMv5TExP",
+	"ARMv5TE",
+}
+
 var ArchLookup = map[string]Architecture{
 	"armv1":     ARMv1,
 	"armv2":     ARMv2,

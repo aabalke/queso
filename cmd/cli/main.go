@@ -14,6 +14,21 @@ import (
 const version = "0.0.1"
 
 func main() {
+	if len(os.Args) == 1 {
+		fmt.Printf("queso arm32 disassembler version %s. use -h for help", version)
+		os.Exit(0)
+	}
+
+	archStr := []byte("architecture versions (")
+	for i, arch := range queso.Archs {
+		archStr = append(archStr, arch...)
+		if i != len(queso.Archs)-1 {
+			archStr = append(archStr, ", "...)
+		}
+	}
+
+	archStr = append(archStr, ')')
+
 	var (
 		versionPtr    = flag.Bool("version", false, "get version")
 		profilePtr    = flag.Bool("profile", false, "run profiler")
@@ -22,14 +37,12 @@ func main() {
 		thumbPtr      = flag.Bool("thumb", false, "force thumb")
 		orderPtr      = flag.String("order", "little", "byte order / endianness (\"little\", \"big\", or \"native\")")
 		regsPtr       = flag.String("regs", "convention", "register names, \"convention\" (lr, pc), \"general\" (r14, r15) or custom comma separated values \"r0,r1,r2,specialr4,r5...\"")
-		archPtr       = flag.String("arch", "ARMv5TE", "architecture version (\"armv2\", \"armv3\", \"armv4tm\", \"armv5te\")")
+		archPtr       = flag.String("arch", queso.Archs[len(queso.Archs)-1], string(archStr))
 		inputPtr      = flag.String("input", "", "input binary file path")
 		outputPtr     = flag.String("output", "", "output path")
 		undefinedPtr  = flag.String("undefined", "unknown instruction", "output on undefined instruction")
 		addrOffsetPtr = flag.Int("offset", 0, "address offset")
 	)
-
-	// TODO: print help if no args
 
 	flag.Parse()
 

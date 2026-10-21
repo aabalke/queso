@@ -15,7 +15,7 @@ const version = "0.0.1"
 
 func main() {
 	if len(os.Args) == 1 {
-		fmt.Printf("queso arm32 disassembler version %s. use -h for help", version)
+		fmt.Printf("queso arm32 disassembler version %s. use -h for help\n", version)
 		os.Exit(0)
 	}
 

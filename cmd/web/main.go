@@ -86,7 +86,7 @@ func UpdateIsa() {
 	offsetValue = strings.TrimPrefix(offsetValue, "0x")
 	offsetValue = hexRegex.ReplaceAllString(offsetValue, "")
 	offset, _ := strconv.ParseUint(offsetValue, 16, 32)
-	isa.Offset = int(offset)
+	isa.Offset = uint32(offset)
 
 	if little := doc.Call("getElementById", "little").Get("checked").Bool(); little {
 		isa.Order = binary.LittleEndian

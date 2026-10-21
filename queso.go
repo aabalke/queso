@@ -146,7 +146,7 @@ type Isa struct {
 	RegisterNaming                     RegisterNaming
 	UndefinedOutput                    string
 	Thumb, OutputAddress, OutputOpcode bool
-	Offset                             int
+	Offset                             uint32
 }
 
 func (isa *Isa) Decode(r io.Reader) ([]string, error) {
@@ -159,7 +159,7 @@ func (isa *Isa) Decode(r io.Reader) ([]string, error) {
 		w           int
 		unknown     Decoder
 		formatters  []Formatter
-		decoderFunc func(b []byte, isa *Isa, decoder Decoder, op uint32, addr int) []byte
+		decoderFunc func(b []byte, isa *Isa, decoder Decoder, op, addr uint32) []byte
 	)
 
 	if !isa.Thumb {
@@ -170,7 +170,7 @@ func (isa *Isa) Decode(r io.Reader) ([]string, error) {
 		w = 4
 		unknown = INST_UNKNOWN
 		formatters = isa.Arch.Formatters
-		decoderFunc = func(b []byte, isa *Isa, decoder Decoder, op uint32, addr int) []byte {
+		decoderFunc = func(b []byte, isa *Isa, decoder Decoder, op, addr uint32) []byte {
 			return DecodersArm[decoder](b, isa, op, addr)
 		}
 	} else {
@@ -182,7 +182,7 @@ func (isa *Isa) Decode(r io.Reader) ([]string, error) {
 		w = 2
 		unknown = INST_THUMB_UNKNOWN
 		formatters = isa.Arch.ThumbFormatters
-		decoderFunc = func(b []byte, isa *Isa, decoder Decoder, op uint32, addr int) []byte {
+		decoderFunc = func(b []byte, isa *Isa, decoder Decoder, op, addr uint32) []byte {
 			return DecodersThumb[decoder](b, isa, uint16(op), addr)
 		}
 	}
@@ -202,7 +202,7 @@ func (isa *Isa) Decode(r io.Reader) ([]string, error) {
 	for currByte := 0; currByte < len(bs); {
 
 		doDecoding := true
-		addr := isa.Offset + currByte
+		addr := isa.Offset + uint32(currByte)
 
 		var op uint32
 
@@ -275,7 +275,7 @@ func convertBytesToStringArray(buf []byte, ends []uint32) []string {
 	return s
 }
 
-func appendPrefixes(b []byte, isa *Isa, op uint32, addr int) []byte {
+func appendPrefixes(b []byte, isa *Isa, op, addr uint32) []byte {
 	if isa.OutputAddress {
 		b = append(b, fmt.Sprintf("0x%08X: ", addr)...)
 	}

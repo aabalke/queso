@@ -41,7 +41,7 @@ func main() {
 		inputPtr      = flag.String("input", "", "input binary file path")
 		outputPtr     = flag.String("output", "", "output path")
 		undefinedPtr  = flag.String("undefined", "unknown instruction", "output on undefined instruction")
-		addrOffsetPtr = flag.Int("offset", 0, "address offset")
+		addrOffsetPtr = flag.Uint("offset", 0, "address offset")
 	)
 
 	flag.Parse()
@@ -82,7 +82,7 @@ func main() {
 		OutputAddress:   *addrPtr,
 		OutputOpcode:    *opcodePtr,
 		UndefinedOutput: *undefinedPtr,
-		Offset:          *addrOffsetPtr,
+		Offset:          uint32(*addrOffsetPtr),
 	}
 
 	var out *os.File

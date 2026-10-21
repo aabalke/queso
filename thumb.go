@@ -124,7 +124,7 @@ var FormattersThumbv2 = []Formatter{
 //	INST_THUMB_BL_SHORT: {0xE800, 0xE800},
 //}
 
-var DecodersThumb = []func(b []byte, isa *Isa, op uint16, addr int) []byte{
+var DecodersThumb = []func(b []byte, isa *Isa, op uint16, addr uint32) []byte{
 	INST_THUMB_BRA:  thumbB,
 	INST_THUMB_SWI:  thumbSvc,
 	INST_THUMB_BPT:  thumbBkpt,
@@ -153,25 +153,25 @@ var DecodersThumb = []func(b []byte, isa *Isa, op uint16, addr int) []byte{
 	INST_THUMB_UNKNOWN:  thumbUnknown,
 }
 
-func thumbUnknown(b []byte, isa *Isa, op uint16, addr int) []byte {
+func thumbUnknown(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	b = append(b, isa.UndefinedOutput...)
 	return b
 }
 
-func thumbB(b []byte, isa *Isa, op uint16, addr int) []byte {
+func thumbB(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	nn := int(int16((op&0x7FF)<<5)>>4) + 4
 	b = append(b, "b "...)
-	b = appendAddr(b, int(addr), isa.Offset, nn)
+	b = appendAddr(b, addr, isa.Offset, nn)
 	return b
 }
 
-func thumbSvc(b []byte, isa *Isa, op uint16, addr int) []byte {
+func thumbSvc(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	b = append(b, "svc "...)
 	b = strconv.AppendUint(b, uint64(op&0xFF), 10)
 	return b
 }
 
-func thumbBkpt(b []byte, isa *Isa, op uint16, addr int) []byte {
+func thumbBkpt(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	b = append(b, "bkpt 0x00"...)
 
 	if op&0xFF < 0x10 {
@@ -181,7 +181,7 @@ func thumbBkpt(b []byte, isa *Isa, op uint16, addr int) []byte {
 	return b
 }
 
-func thumbHi(b []byte, isa *Isa, op uint16, addr int) []byte {
+func thumbHi(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	rd := isa.RegisterNaming[(op&7)|(((op>>7)&1)<<3)]
 	rs := isa.RegisterNaming[(op>>3)&0xF]
 
@@ -229,16 +229,16 @@ func thumbHi(b []byte, isa *Isa, op uint16, addr int) []byte {
 	return b
 }
 
-func thumbCondB(b []byte, isa *Isa, op uint16, addr int) []byte {
+func thumbCondB(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	b = append(b, "b"...)
 	b = appendCond(b, uint32(op>>8)&0xF)
 	b = append(b, ' ')
 	nn := (int(int8(op&0xFF)) << 1) + 4
-	b = appendAddr(b, int(addr), isa.Offset, nn)
+	b = appendAddr(b, addr, isa.Offset, nn)
 	return b
 }
 
-func thumbAlu(b []byte, isa *Isa, op uint16, addr int) []byte {
+func thumbAlu(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	rd := isa.RegisterNaming[(op>>0)&7]
 	rs := isa.RegisterNaming[(op>>3)&7]
 	b = append(b, aluOpsThumb[(op>>6)&0xF]...)
@@ -249,7 +249,7 @@ func thumbAlu(b []byte, isa *Isa, op uint16, addr int) []byte {
 	return b
 }
 
-func thumbImm(b []byte, isa *Isa, op uint16, addr int) []byte {
+func thumbImm(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	rd := isa.RegisterNaming[(op>>8)&7]
 	nn := int(op & 0xFF)
 
@@ -270,7 +270,7 @@ func thumbImm(b []byte, isa *Isa, op uint16, addr int) []byte {
 	return b
 }
 
-func thumbAdd(b []byte, isa *Isa, op uint16, addr int) []byte {
+func thumbAdd(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	isImm := op&(1<<10) != 0
 	sub := op&(1<<9) != 0
 	n := (op >> 6) & 7
@@ -298,7 +298,7 @@ func thumbAdd(b []byte, isa *Isa, op uint16, addr int) []byte {
 	return b
 }
 
-func thumbShift(b []byte, isa *Isa, op uint16, addr int) []byte {
+func thumbShift(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	opc := (op >> 11) & 3
 	offset := (op >> 6) & 0x1F
 	rs := isa.RegisterNaming[(op>>3)&7]
@@ -326,7 +326,7 @@ func thumbShift(b []byte, isa *Isa, op uint16, addr int) []byte {
 	return b
 }
 
-func thumbPushPop(b []byte, isa *Isa, op uint16, addr int) []byte {
+func thumbPushPop(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	if pop := op&(1<<11) != 0; pop {
 		b = append(b, "pop {"...)
 	} else {
@@ -355,7 +355,7 @@ func thumbPushPop(b []byte, isa *Isa, op uint16, addr int) []byte {
 	return b
 }
 
-func thumbBlk(b []byte, isa *Isa, op uint16, addr int) []byte {
+func thumbBlk(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	pop := op&(1<<11) != 0
 	if pop {
 		b = append(b, "ldmia "...)
@@ -384,7 +384,7 @@ func thumbBlk(b []byte, isa *Isa, op uint16, addr int) []byte {
 	return b
 }
 
-func thumbRelative(b []byte, isa *Isa, op uint16, addr int) []byte {
+func thumbRelative(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	nn := int((op & 0xFF) << 2)
 	rd := isa.RegisterNaming[(op>>8)&7]
 
@@ -404,7 +404,7 @@ func thumbRelative(b []byte, isa *Isa, op uint16, addr int) []byte {
 	return b
 }
 
-func thumbSp(b []byte, isa *Isa, op uint16, addr int) []byte {
+func thumbSp(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	nn := int((op & 0x7F) << 2)
 
 	if op&0x80 != 0 {
@@ -419,7 +419,7 @@ func thumbSp(b []byte, isa *Isa, op uint16, addr int) []byte {
 	return b
 }
 
-func thumbSdtReg(b []byte, isa *Isa, op uint16, addr int) []byte {
+func thumbSdtReg(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	ro := isa.RegisterNaming[(op>>6)&7]
 	rb := isa.RegisterNaming[(op>>3)&7]
 	rd := isa.RegisterNaming[(op>>0)&7]
@@ -451,7 +451,7 @@ func thumbSdtReg(b []byte, isa *Isa, op uint16, addr int) []byte {
 	return b
 }
 
-func thumbSdtImm(b []byte, isa *Isa, op uint16, addr int) []byte {
+func thumbSdtImm(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	nn := int((op >> 6) & 0x1F)
 	rb := isa.RegisterNaming[(op>>3)&7]
 	rd := isa.RegisterNaming[(op>>0)&7]
@@ -478,7 +478,7 @@ func thumbSdtImm(b []byte, isa *Isa, op uint16, addr int) []byte {
 	return b
 }
 
-func thumbSdtHalf(b []byte, isa *Isa, op uint16, addr int) []byte {
+func thumbSdtHalf(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	nn := int((op>>6)&0x1F) * 2
 	rb := isa.RegisterNaming[(op>>3)&7]
 	rd := isa.RegisterNaming[(op>>0)&7]
@@ -498,7 +498,7 @@ func thumbSdtHalf(b []byte, isa *Isa, op uint16, addr int) []byte {
 	return b
 }
 
-func thumbPcRel(b []byte, isa *Isa, op uint16, addr int) []byte {
+func thumbPcRel(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	nn := int((op & 0xFF) * 4)
 	rd := isa.RegisterNaming[(op>>8)&7]
 
@@ -512,7 +512,7 @@ func thumbPcRel(b []byte, isa *Isa, op uint16, addr int) []byte {
 	return b
 }
 
-func thumbSpRel(b []byte, isa *Isa, op uint16, addr int) []byte {
+func thumbSpRel(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	nn := int((op & 0xFF) * 4)
 	rd := isa.RegisterNaming[(op>>8)&7]
 
@@ -574,7 +574,7 @@ func thumbReverse(b []byte, isa *Isa, op uint16, _ int) []byte {
 	return b
 }
 
-func thumbCbz(b []byte, isa *Isa, op uint16, addr int) []byte {
+func thumbCbz(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	rn := isa.RegisterNaming[(op>>0)&7]
 
 	nn := int(((op >> 3) & 0x1F))
@@ -594,11 +594,11 @@ func thumbCbz(b []byte, isa *Isa, op uint16, addr int) []byte {
 
 	b = append(b, rn...)
 	b = append(b, ", "...)
-	b = appendAddr(b, int(addr), isa.Offset, nn)
+	b = appendAddr(b, addr, isa.Offset, nn)
 	return b
 }
 
-func thumbIt(b []byte, isa *Isa, op uint16, addr int) []byte {
+func thumbIt(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	cond := int(op>>4) & 0xf
 	mask := uint(op) & 0xf
 
@@ -658,7 +658,7 @@ func thumbIt(b []byte, isa *Isa, op uint16, addr int) []byte {
 	return b
 }
 
-func thumbSetEnd(b []byte, isa *Isa, op uint16, addr int) []byte {
+func thumbSetEnd(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	if op&(1<<3) != 0 {
 		b = append(b, "setend be"...)
 	} else {
@@ -668,7 +668,7 @@ func thumbSetEnd(b []byte, isa *Isa, op uint16, addr int) []byte {
 	return b
 }
 
-func thumbCps(b []byte, isa *Isa, op uint16, addr int) []byte {
+func thumbCps(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	if op&(1<<4) != 0 {
 		b = append(b, "cpsid"...)
 	} else {
@@ -691,7 +691,7 @@ func thumbCps(b []byte, isa *Isa, op uint16, addr int) []byte {
 	return b
 }
 
-func thumbBlLong(b []byte, isa *Isa, op uint32, addr int) ([]byte, bool) {
+func thumbBlLong(b []byte, isa *Isa, op, addr uint32) ([]byte, bool) {
 	op2 := op & 0xFFFF
 	op = op >> 16
 	bl := int(uint32(int32(uint32(op&0x7FF)<<21)>>9) + 4)
@@ -714,7 +714,7 @@ func thumbBlLong(b []byte, isa *Isa, op uint32, addr int) ([]byte, bool) {
 	return b, true
 }
 
-func thumbBlShort(b []byte, isa *Isa, op uint16, addr int) []byte {
+func thumbBlShort(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	bl := int64(uint32(op&0x7FF) << 1)
 	isBlx := op&(1<<12) == 0
 	switch {

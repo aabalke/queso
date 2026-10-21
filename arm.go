@@ -174,7 +174,7 @@ var FormattersArmv5 = []Formatter{
 //	INST_NV:            {0xF000_0000, 0xF000_0000},
 //}
 
-var DecodersArm = []func(b []byte, isa *Isa, op uint32, addr int) []byte{
+var DecodersArm = []func(b []byte, isa *Isa, op, addr uint32) []byte{
 	INST_UNKNOWN:       unknown,
 	INST_SVC:           svc,
 	INST_BKP:           bkpt,
@@ -209,12 +209,12 @@ var DecodersArm = []func(b []byte, isa *Isa, op uint32, addr int) []byte{
 	INST_NV: nv,
 }
 
-func unknown(b []byte, isa *Isa, op uint32, addr int) []byte {
+func unknown(b []byte, isa *Isa, op, addr uint32) []byte {
 	b = append(b, isa.UndefinedOutput...)
 	return b
 }
 
-func nv(b []byte, isa *Isa, op uint32, addr int) []byte {
+func nv(b []byte, isa *Isa, op, addr uint32) []byte {
 	if isa.Arch.ArmVersion < ArmVersion5 {
 		return unknown(b, isa, op, addr)
 	}
@@ -248,7 +248,7 @@ func nv(b []byte, isa *Isa, op uint32, addr int) []byte {
 	return unknown(b, isa, op, addr)
 }
 
-func svc(b []byte, isa *Isa, op uint32, addr int) []byte {
+func svc(b []byte, isa *Isa, op, addr uint32) []byte {
 	b = append(b, "svc"...)
 	b = appendCond(b, op>>28)
 	b = append(b, " 0x00000000"...)
@@ -257,7 +257,7 @@ func svc(b []byte, isa *Isa, op uint32, addr int) []byte {
 	return b
 }
 
-func bkpt(b []byte, isa *Isa, op uint32, addr int) []byte {
+func bkpt(b []byte, isa *Isa, op, addr uint32) []byte {
 	b = append(b, "bkpt 0x0000"...)
 	nn := int((op & 0xF) | (((op >> 8) & 0xFFF) << 4))
 	c := strconv.AppendUint([]byte{}, uint64(nn), 16)
@@ -265,12 +265,12 @@ func bkpt(b []byte, isa *Isa, op uint32, addr int) []byte {
 	return b
 }
 
-func und(b []byte, isa *Isa, op uint32, addr int) []byte {
+func und(b []byte, isa *Isa, op, addr uint32) []byte {
 	b = append(b, isa.UndefinedOutput...)
 	return b
 }
 
-func br(b []byte, isa *Isa, op uint32, addr int) []byte {
+func br(b []byte, isa *Isa, op, addr uint32) []byte {
 	nn := int((int32(op)<<8)>>6) + 8
 
 	switch {
@@ -293,11 +293,11 @@ func br(b []byte, isa *Isa, op uint32, addr int) []byte {
 		b = append(b, ' ')
 	}
 
-	b = appendAddr(b, int(addr), isa.Offset, nn)
+	b = appendAddr(b, addr, isa.Offset, nn)
 	return b
 }
 
-func bx(b []byte, isa *Isa, op uint32, addr int) []byte {
+func bx(b []byte, isa *Isa, op, addr uint32) []byte {
 	rn := isa.RegisterNaming[op&0xF]
 
 	switch inst := (op >> 4) & 0xF; inst {
@@ -326,7 +326,7 @@ func bx(b []byte, isa *Isa, op uint32, addr int) []byte {
 
 var mulOps = []string{"mul", "mla", "umaal", "", "umull", "umlal", "smull", "smlal"}
 
-func mul(b []byte, isa *Isa, op uint32, addr int) []byte {
+func mul(b []byte, isa *Isa, op, addr uint32) []byte {
 	rd := isa.RegisterNaming[(op>>16)&0xF]
 	rn := isa.RegisterNaming[(op>>12)&0xF]
 	rs := isa.RegisterNaming[(op>>8)&0xF]
@@ -375,7 +375,7 @@ func mul(b []byte, isa *Isa, op uint32, addr int) []byte {
 
 var hwmOps = []string{"smla", "", "smlal", "smul"}
 
-func hwm(b []byte, isa *Isa, op uint32, addr int) []byte {
+func hwm(b []byte, isa *Isa, op, addr uint32) []byte {
 	rd := isa.RegisterNaming[(op>>16)&0xF]
 	rn := isa.RegisterNaming[(op>>12)&0xF]
 	rs := isa.RegisterNaming[(op>>8)&0xF]
@@ -433,7 +433,7 @@ func hwm(b []byte, isa *Isa, op uint32, addr int) []byte {
 
 var qaluOps = []string{"qadd", "qsub", "qdadd", "qdsub"}
 
-func qalu(b []byte, isa *Isa, op uint32, addr int) []byte {
+func qalu(b []byte, isa *Isa, op, addr uint32) []byte {
 	rn := isa.RegisterNaming[(op>>16)&0xF]
 	rd := isa.RegisterNaming[(op>>12)&0xF]
 	rm := isa.RegisterNaming[(op>>0)&0xF]
@@ -456,7 +456,7 @@ func qalu(b []byte, isa *Isa, op uint32, addr int) []byte {
 	return b
 }
 
-func clz(b []byte, isa *Isa, op uint32, addr int) []byte {
+func clz(b []byte, isa *Isa, op, addr uint32) []byte {
 	rd := isa.RegisterNaming[(op>>12)&0xF]
 	rm := isa.RegisterNaming[op&0xF]
 
@@ -470,7 +470,7 @@ func clz(b []byte, isa *Isa, op uint32, addr int) []byte {
 	return b
 }
 
-func swp(b []byte, isa *Isa, op uint32, addr int) []byte {
+func swp(b []byte, isa *Isa, op, addr uint32) []byte {
 	if isa.Arch.Flags&ATOMIC_FLAG == 0 {
 		return unknown(b, isa, op, addr)
 	}
@@ -501,7 +501,7 @@ var blkOpc = [2][4]string{
 	{"da", "", "db", "ib"},
 }
 
-func blk(b []byte, isa *Isa, op uint32, _ int) []byte {
+func blk(b []byte, isa *Isa, op, addr uint32) []byte {
 	l := op&(1<<20) != 0
 	w := op&(1<<21) != 0
 	s := op&(1<<22) != 0
@@ -564,7 +564,7 @@ var halfOpc = [2][4]string{
 	{"", "ldrh", "ldrsb", "ldrsh"},
 }
 
-func half(b []byte, isa *Isa, op uint32, _ int) []byte {
+func half(b []byte, isa *Isa, op, addr uint32) []byte {
 	inst := (op >> 5) & 3
 	l := (op >> 20) & 1
 
@@ -676,7 +676,7 @@ func sdtShared(b []byte, isa *Isa, op uint32, offset []byte) []byte {
 
 var shifts = [4]string{"lsl", "lsr", "asr", "ror"}
 
-func sdtReg(b []byte, isa *Isa, op uint32, addr int) []byte {
+func sdtReg(b []byte, isa *Isa, op, addr uint32) []byte {
 	offset := make([]byte, 0, 32)
 
 	is := int((op >> 7) & 0x1F)
@@ -713,7 +713,7 @@ func sdtReg(b []byte, isa *Isa, op uint32, addr int) []byte {
 	return b
 }
 
-func sdtImm(b []byte, isa *Isa, op uint32, addr int) []byte {
+func sdtImm(b []byte, isa *Isa, op, addr uint32) []byte {
 	offset := make([]byte, 0, 32)
 	ofs := int(op & 0xFFF)
 
@@ -733,7 +733,7 @@ var aluOpsArm = [16]string{
 	"tst", "teq", "cmp", "cmn", "orr", "mov", "bic", "mvn",
 }
 
-func appendAluShiftPre(b []byte, isa *Isa, op uint32, _ int) []byte {
+func appendAluShiftPre(b []byte, isa *Isa, op uint32) []byte {
 	sType := (op >> 5) & 3
 	shift := shifts[sType]
 	b = append(b, shift...)
@@ -751,7 +751,7 @@ func appendAluShiftPre(b []byte, isa *Isa, op uint32, _ int) []byte {
 	return b
 }
 
-func appendAluPre(b []byte, isa *Isa, op uint32, _ int) []byte {
+func appendAluPre(b []byte, isa *Isa, op uint32) []byte {
 	inst := (op >> 21) & 0xF
 	logical := inst >= 8 && inst < 0xC
 	rd := (op >> 12) & 0xF
@@ -783,12 +783,12 @@ func appendAluPre(b []byte, isa *Isa, op uint32, _ int) []byte {
 	return b
 }
 
-func aluShiftReg(b []byte, isa *Isa, op uint32, addr int) []byte {
+func aluShiftReg(b []byte, isa *Isa, op, addr uint32) []byte {
 	rm := isa.RegisterNaming[op&0xF]
 	rs := isa.RegisterNaming[(op>>8)&0xF]
 
 	if shiftOnly := (op>>21)&0xF == 0xD; shiftOnly {
-		b = appendAluShiftPre(b, isa, op, addr)
+		b = appendAluShiftPre(b, isa, op)
 		b = append(b, rm...)
 		b = append(b, ", "...)
 		b = append(b, rs...)
@@ -796,7 +796,7 @@ func aluShiftReg(b []byte, isa *Isa, op uint32, addr int) []byte {
 	} else {
 		sType := (op >> 5) & 3
 		shift := shifts[sType]
-		b = appendAluPre(b, isa, op, addr)
+		b = appendAluPre(b, isa, op)
 		b = append(b, rm...)
 		b = append(b, ", "...)
 		b = append(b, shift...)
@@ -806,7 +806,7 @@ func aluShiftReg(b []byte, isa *Isa, op uint32, addr int) []byte {
 	}
 }
 
-func aluShiftImm(b []byte, isa *Isa, op uint32, _ int) []byte {
+func aluShiftImm(b []byte, isa *Isa, op, addr uint32) []byte {
 	rm := isa.RegisterNaming[op&0xF]
 	sType := (op >> 5) & 3
 	is := (op >> 7) & 0x1F
@@ -815,7 +815,7 @@ func aluShiftImm(b []byte, isa *Isa, op uint32, _ int) []byte {
 
 	if shiftOnly {
 
-		b = appendAluShiftPre(b, isa, op, 0)
+		b = appendAluShiftPre(b, isa, op)
 
 		b = append(b, rm...)
 		b = append(b, ", "...)
@@ -837,7 +837,7 @@ func aluShiftImm(b []byte, isa *Isa, op uint32, _ int) []byte {
 		return b
 	} else {
 
-		b = appendAluPre(b, isa, op, 0)
+		b = appendAluPre(b, isa, op)
 
 		b = append(b, rm...)
 
@@ -863,8 +863,8 @@ func aluShiftImm(b []byte, isa *Isa, op uint32, _ int) []byte {
 	}
 }
 
-func alu(b []byte, isa *Isa, op uint32, _ int) []byte {
-	b = appendAluPre(b, isa, op, 0)
+func alu(b []byte, isa *Isa, op, addr uint32) []byte {
+	b = appendAluPre(b, isa, op)
 	b = append(b, "#"...)
 
 	rot := int((op>>8)&0xF) * 2
@@ -891,7 +891,7 @@ func alu(b []byte, isa *Isa, op uint32, _ int) []byte {
 	return b
 }
 
-func crt(b []byte, isa *Isa, op uint32, addr int) []byte {
+func crt(b []byte, isa *Isa, op, addr uint32) []byte {
 	var (
 		opc = (op >> 21) & 7
 		cn  = (op >> 16) & 0xF
@@ -944,7 +944,7 @@ var psrs = []string{
 	"spsr",
 }
 
-func mrs(b []byte, isa *Isa, op uint32, addr int) []byte {
+func mrs(b []byte, isa *Isa, op, addr uint32) []byte {
 	rd := isa.RegisterNaming[(op>>12)&0xF]
 	b = append(b, "mrs"...)
 	b = appendCond(b, op>>28)
@@ -955,7 +955,7 @@ func mrs(b []byte, isa *Isa, op uint32, addr int) []byte {
 	return b
 }
 
-func msr(b []byte, isa *Isa, op uint32, addr int) []byte {
+func msr(b []byte, isa *Isa, op, addr uint32) []byte {
 	b = append(b, "msr"...)
 	b = appendCond(b, op>>28)
 	b = append(b, " "...)
@@ -987,7 +987,7 @@ func msr(b []byte, isa *Isa, op uint32, addr int) []byte {
 	return b
 }
 
-func cdp(b []byte, isa *Isa, op uint32, addr int) []byte {
+func cdp(b []byte, isa *Isa, op, addr uint32) []byte {
 	if cond := op >> 28; cond == 0xF && isa.Arch.ArmVersion >= ArmVersion5 {
 		b = append(b, "cdp2"...)
 	} else {
@@ -1020,7 +1020,7 @@ func cdp(b []byte, isa *Isa, op uint32, addr int) []byte {
 	return b
 }
 
-func ext(b []byte, isa *Isa, op uint32, addr int) []byte {
+func ext(b []byte, isa *Isa, op, addr uint32) []byte {
 	rn := (op >> 16) & 0xF
 	rd := (op >> 12) & 0xF
 	rm := (op >> 0) & 0xF
@@ -1089,7 +1089,7 @@ func ext(b []byte, isa *Isa, op uint32, addr int) []byte {
 	return b
 }
 
-func sat(b []byte, isa *Isa, op uint32, addr int) []byte {
+func sat(b []byte, isa *Isa, op, addr uint32) []byte {
 	immediate := (op >> 16) & 0x1F
 	if op&(1<<22) != 0 {
 		b = append(b, "usat"...)
@@ -1124,7 +1124,7 @@ func sat(b []byte, isa *Isa, op uint32, addr int) []byte {
 	return b
 }
 
-func sat16(b []byte, isa *Isa, op uint32, addr int) []byte {
+func sat16(b []byte, isa *Isa, op, addr uint32) []byte {
 	immediate := (op >> 16) & 0xF
 	if op&(1<<22) != 0 {
 		b = append(b, "usat16"...)
@@ -1143,7 +1143,7 @@ func sat16(b []byte, isa *Isa, op uint32, addr int) []byte {
 	return b
 }
 
-func usad(b []byte, isa *Isa, op uint32, addr int) []byte {
+func usad(b []byte, isa *Isa, op, addr uint32) []byte {
 	rd := (op >> 16) & 0xF
 	rn := (op >> 12) & 0xF
 	rs := (op >> 8) & 0xF
@@ -1171,7 +1171,7 @@ func usad(b []byte, isa *Isa, op uint32, addr int) []byte {
 	return b
 }
 
-func pack(b []byte, isa *Isa, op uint32, addr int) []byte {
+func pack(b []byte, isa *Isa, op, addr uint32) []byte {
 	rn := (op >> 16) & 0xF
 	rd := (op >> 12) & 0xF
 	rm := (op >> 0) & 0xF
@@ -1208,7 +1208,7 @@ func pack(b []byte, isa *Isa, op uint32, addr int) []byte {
 	return b
 }
 
-func rev(b []byte, isa *Isa, op uint32, addr int) []byte {
+func rev(b []byte, isa *Isa, op, addr uint32) []byte {
 	opc := (((op >> 22) & 1) << 1) | ((op >> 7) & 1)
 
 	rd := (op >> 12) & 0xF
@@ -1233,7 +1233,7 @@ func rev(b []byte, isa *Isa, op uint32, addr int) []byte {
 	return b
 }
 
-func cdt(b []byte, isa *Isa, op uint32, addr int) []byte {
+func cdt(b []byte, isa *Isa, op, addr uint32) []byte {
 	rn := (op >> 16) & 0xF
 	cd := (op >> 12) & 0xF
 	pn := (op >> 8) & 0xF
@@ -1309,7 +1309,7 @@ func cdt(b []byte, isa *Isa, op uint32, addr int) []byte {
 	return b
 }
 
-func cop2(b []byte, isa *Isa, op uint32, addr int) []byte {
+func cop2(b []byte, isa *Isa, op, addr uint32) []byte {
 	var (
 		rn  = isa.RegisterNaming[(op>>16)&0xF]
 		rd  = isa.RegisterNaming[(op>>12)&0xF]
@@ -1352,7 +1352,7 @@ func cop2(b []byte, isa *Isa, op uint32, addr int) []byte {
 	return b
 }
 
-func movt(b []byte, isa *Isa, op uint32, addr int) []byte {
+func movt(b []byte, isa *Isa, op, addr uint32) []byte {
 	imm := (op & 0xFFF) | (((op >> 16) & 0xF) << 12)
 	rd := isa.RegisterNaming[(op>>12)&0xF]
 

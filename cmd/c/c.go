@@ -1,6 +1,7 @@
 package main
 
 /*
+#include <stdlib.h>
 #include "libqueso.h"
 */
 import "C"
@@ -37,8 +38,8 @@ var orders = [...]binary.ByteOrder{
 	C.QUESO_NATIVE_ENDIAN: binary.NativeEndian,
 }
 
-//export decode
-func decode(opts *C.queso_isa_opts, data_bytes *C.uint8_t, n C.int) C.int {
+//export queso_decode
+func queso_decode(opts *C.queso_isa_opts, data_bytes *C.uint8_t, n C.int, res *C.queso_result) C.int {
 	var naming queso.RegisterNaming
 	switch opts.naming {
 	case C.QUESO_CONVENTIONAL:
@@ -56,18 +57,49 @@ func decode(opts *C.queso_isa_opts, data_bytes *C.uint8_t, n C.int) C.int {
 		Thumb:           bool(opts.thumb),
 		OutputAddress:   bool(opts.output_address),
 		OutputOpcode:    bool(opts.output_opcode),
-		Offset:          int(uint32(opts.offset)),
+		Offset:          uint32(opts.offset),
 		UndefinedOutput: C.GoString(opts.undefined_output),
 	}
 
 	b := unsafe.Slice((*byte)(unsafe.Pointer(data_bytes)), int(n))
 
-	vs, _ := isa.Decode(bytes.NewReader(b))
-	for i := range len(vs) {
-		println("vs", vs[i])
+	vs, err := isa.Decode(bytes.NewReader(b))
+
+	if len(vs) != 0 {
+		arr := (**C.char)(C.calloc(C.size_t(len(vs)), C.size_t(unsafe.Sizeof(uintptr(0)))))
+		if arr == nil {
+			res.err = C.CString("error allocating string")
+			return -1
+		}
+		slots := unsafe.Slice(arr, len(vs))
+		for i, s := range vs {
+			slots[i] = C.CString(s)
+		}
+		res.lines = arr
+		res.len = C.size_t(len(vs))
+	}
+
+	if err != nil {
+		res.err = C.CString(err.Error())
+		return -1
 	}
 
 	return 0
+}
+
+//export queso_free_result
+func queso_free_result(r *C.queso_result) {
+	if r == nil {
+		return
+	}
+	if r.lines != nil {
+		for _, p := range unsafe.Slice(r.lines, int(r.len)) {
+			C.free(unsafe.Pointer(p))
+		}
+		C.free(unsafe.Pointer(r.lines))
+	}
+	C.free(unsafe.Pointer(r.err))
+	*r = C.queso_result{}
 }
 
 func getCustomNames(opts *C.queso_isa_opts) queso.RegisterNaming {

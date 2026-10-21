@@ -43,3 +43,9 @@ typedef struct {
   bool output_address;
   bool output_opcode;
 } queso_isa_opts;
+
+typedef struct {
+  char **lines;
+  char *err;
+  size_t len;
+} queso_result;

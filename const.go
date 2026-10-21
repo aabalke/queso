@@ -96,8 +96,8 @@ func appendCond(b []byte, c uint32) []byte {
 	return b
 }
 
-func appendAddr(b []byte, addr, absOffset, relOffset int) []byte {
+func appendAddr(b []byte, addr, absOffset uint32, relOffset int) []byte {
 	b = append(b, "0x"...)
-	b = appendHex(b, uint32(addr+absOffset+relOffset))
+	b = appendHex(b, uint32(int(addr)+int(absOffset)+relOffset))
 	return b
 }

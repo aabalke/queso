@@ -9,7 +9,13 @@ queso is a arm32 disassembler written in golang. I originally wrote this to inte
 - Supports General and Convention Register Names (r15 vs pc) (and Custom!)
 - Uses Unified Assembler Language (UAL) syntax
 
-# How to Use
+# Getting Started
+
+queso is packaged in 4 ways: a web version, a cli version, a vendorable golang version and a vendorable c version.
+
+# How to Use / Building
+
+building requires 
 
 ## Webpage
 
@@ -17,7 +23,7 @@ Use [guacemulator.com/queso](https://guacemulator.com/queso/). Or see building f
 
 ## Cli
 
-See releases for cli version.
+See releases for cli version. 
 
 [TODO]
 

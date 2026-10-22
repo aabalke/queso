@@ -141,7 +141,7 @@ jobs:
       - name: Install cross compiler (llvm-mingw, Windows arm64)
         if: matrix.goos == 'windows' && matrix.goarch == 'arm64'
         run: |
-          name="llvm-mingw-${LLVM_MINGW_VERSION}-ucrt-ubuntu-22.04-x86_64"
+          name="llvm-mingw-${LLVM_MINGW_VERSION}-ucrt-ubuntu-20.04-x86_64"
           curl -fsSL "https://github.com/mstorsjo/llvm-mingw/releases/download/${LLVM_MINGW_VERSION}/${name}.tar.xz" | tar -xJ -C "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/${name}/bin" >> "$GITHUB_PATH"
 

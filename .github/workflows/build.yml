@@ -1,0 +1,187 @@
+name: Build
+
+on:
+  push:
+    branches: ["master"]
+    tags: ["v*"]
+  pull_request:
+    branches: ["master"]
+
+env:
+  GO_VERSION: "1.27"
+  # llvm-mingw is only used to cross-compile the Windows arm64 C archive.
+  # Check https://github.com/mstorsjo/llvm-mingw/releases if you want to bump it.
+  LLVM_MINGW_VERSION: "20250114"
+
+jobs:
+  #test:
+  #  runs-on: ubuntu-latest
+  #  steps:
+  #    - uses: actions/checkout@v4
+
+  #    - name: Set up Go
+  #      uses: actions/setup-go@v5
+  #      with:
+  #        go-version: ${{ env.GO_VERSION }}
+
+  #    - name: Test
+  #      run: go test -v ./...
+
+  # ---------------------------------------------------------------------------
+  # CLI: one executable per OS/arch (pure Go, so trivial to cross-compile)
+  # ---------------------------------------------------------------------------
+  cli:
+    #needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: windows, goarch: amd64, ext: .exe }
+          - { goos: windows, goarch: arm64, ext: .exe }
+          - { goos: linux, goarch: amd64, ext: "" }
+          - { goos: linux, goarch: arm64, ext: "" }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Build CLI
+        working-directory: cmd/cli
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: go build -o "$GITHUB_WORKSPACE/out/queso-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: queso-cli-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: out/*
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Web: built once (js/wasm), bundled into a single zip
+  # ---------------------------------------------------------------------------
+  web:
+    #needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Build WASM and bundle
+        working-directory: cmd/web
+        env:
+          GOOS: js
+          GOARCH: wasm
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/stage"
+          go build -o "$GITHUB_WORKSPACE/stage/main.wasm"
+          cp index.html queso.js "$GITHUB_WORKSPACE/stage/"
+          cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" "$GITHUB_WORKSPACE/stage/"
+
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          cd "$GITHUB_WORKSPACE/stage"
+          zip "$GITHUB_WORKSPACE/out/queso-web.zip" index.html queso.js wasm_exec.js main.wasm
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: queso-web
+          path: out/queso-web.zip
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # C library: c-archive needs cgo, so each target needs a matching C compiler
+  # ---------------------------------------------------------------------------
+  c:
+    #needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            apt: ""
+            cc: gcc
+          - goos: linux
+            goarch: arm64
+            apt: gcc-aarch64-linux-gnu
+            cc: aarch64-linux-gnu-gcc
+          - goos: windows
+            goarch: amd64
+            apt: gcc-mingw-w64-x86-64
+            cc: x86_64-w64-mingw32-gcc
+          - goos: windows
+            goarch: arm64
+            apt: ""
+            cc: aarch64-w64-mingw32-clang # provided by llvm-mingw, see below
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install cross compiler (apt)
+        if: matrix.apt != ''
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ matrix.apt }}
+
+      - name: Install cross compiler (llvm-mingw, Windows arm64)
+        if: matrix.goos == 'windows' && matrix.goarch == 'arm64'
+        run: |
+          name="llvm-mingw-${LLVM_MINGW_VERSION}-ucrt-ubuntu-22.04-x86_64"
+          curl -fsSL "https://github.com/mstorsjo/llvm-mingw/releases/download/${LLVM_MINGW_VERSION}/${name}.tar.xz" | tar -xJ -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/${name}/bin" >> "$GITHUB_PATH"
+
+      - name: Build C archive
+        working-directory: cmd/c
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 1
+          CC: ${{ matrix.cc }}
+        run: go build -buildmode=c-archive -o queso.a c.go
+
+      - name: Zip
+        working-directory: cmd/c
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          zip "$GITHUB_WORKSPACE/out/queso-c-${{ matrix.goos }}-${{ matrix.goarch }}.zip" queso.a queso.h libqueso.h
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: queso-c-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: out/*.zip
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Release: on a version tag (e.g. v1.0.0), attach everything to a GitHub release
+  # ---------------------------------------------------------------------------
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [cli, web, c]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

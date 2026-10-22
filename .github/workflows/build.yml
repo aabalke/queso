@@ -154,7 +154,7 @@ jobs:
         working-directory: cmd/c
         run: |
           mkdir -p "$GITHUB_WORKSPACE/out"
-          mv queso.a queso.h libqueso.h out/
+          mv queso.a queso.h libqueso.h "$GITHUB_WORKSPACE/out/"
 
       - uses: actions/upload-artifact@v4
         with:

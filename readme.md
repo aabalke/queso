@@ -33,17 +33,29 @@ queso -order=big 0EF0B0E1 010081E0
 
 ### Flags
 -input=[filepath]: sets the input file for disassembly
+
 -output=[filepath]: sets the output file for disassembly
+
 -thumb: forces disassembly in thumb mode
+
 -addr: outputs address of each instruction
+
 -opcode: outputs opcode of each instruction
+
 -offset=[int]: sets starting base of address
+
 -order=[little,big,native]: sets order/endianness of disassembly. Default is little.
+
 -regs=[convention,general,"comma separated list of register names"]: sets register names to convention (lr, pc), general (r14, r15), or custom. Custom starts with r0 and should be in the format "r0,r1,r2,r3,r4...". Default is Convention.
+
 -undefined=[string]: sets output on undefined instruction
+
 -arch=ArchVersion: sets Arm32 version. Default is ARMv5TE. All Versions ARMv1 through ARMv5TE are valid.
+
 -version: prints queso version
+
 -profile: uses pprof to profile queso
+
 -h: help
 
 ## C

@@ -83,15 +83,19 @@ jobs:
           GOOS: js
           GOARCH: wasm
         run: |
+          mkdir -p "$GITHUB_WORKSPACE/stage"
+          go build -o "$GITHUB_WORKSPACE/stage/main.wasm"
+          cp index.html queso.js "$GITHUB_WORKSPACE/stage/"
+          cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" "$GITHUB_WORKSPACE/stage/"
+
           mkdir -p "$GITHUB_WORKSPACE/out"
-          go build -o "$GITHUB_WORKSPACE/out/main.wasm"
-          cp index.html queso.js "$GITHUB_WORKSPACE/out/"
-          cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" "$GITHUB_WORKSPACE/out/"
+          cd "$GITHUB_WORKSPACE/stage"
+          zip "$GITHUB_WORKSPACE/out/queso-web.zip" index.html queso.js wasm_exec.js main.wasm
 
       - uses: actions/upload-artifact@v4
         with:
           name: queso-web
-          path: out/*
+          path: out/queso-web.zip
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
@@ -150,16 +154,16 @@ jobs:
           CC: ${{ matrix.cc }}
         run: go build -buildmode=c-archive -o queso.a c.go
 
-      - name: Move
+      - name: Zip
         working-directory: cmd/c
         run: |
           mkdir -p "$GITHUB_WORKSPACE/out"
-          mv queso.a queso.h libqueso.h "$GITHUB_WORKSPACE/out/"
+          zip "$GITHUB_WORKSPACE/out/queso-c-${{ matrix.goos }}-${{ matrix.goarch }}.zip" queso.a queso.h libqueso.h
 
       - uses: actions/upload-artifact@v4
         with:
           name: queso-c-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: out/*
+          path: out/*.zip
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------

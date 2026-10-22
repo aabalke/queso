@@ -568,7 +568,7 @@ func half(b []byte, isa *Isa, op, addr uint32) []byte {
 	inst := (op >> 5) & 3
 	l := (op >> 20) & 1
 
-	if l == 0 && inst >= 2 && isa.Arch.EnhancedDsp == EnhancedDsp {
+	if l == 0 && inst >= 2 && isa.Arch.EnhancedDsp != EnhancedDsp {
 		b = append(b, isa.UndefinedOutput...)
 		return b
 	}

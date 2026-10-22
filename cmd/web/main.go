@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"regexp"
 	"strconv"
@@ -50,7 +51,7 @@ func initHtml() {
 	doc.Call("getElementById", "conventional").Set("checked", isa.RegisterNaming == queso.ConventionNaming)
 	doc.Call("getElementById", "general").Set("checked", isa.RegisterNaming == queso.GeneralNaming)
 	doc.Call("getElementById", "hexinput").Set("checked", true)
-	doc.Call("getElementById", "offset_input").Set("value", strconv.FormatInt(int64(isa.Offset), 16))
+	//doc.Call("getElementById", "offset_input").Set("value", strconv.FormatUint(uint64(isa.Offset), 16))
 
 	custom := isa.RegisterNaming != queso.ConventionNaming && isa.RegisterNaming != queso.GeneralNaming
 
@@ -85,7 +86,8 @@ func UpdateIsa() {
 	offsetValue = strings.ToLower(offsetValue)
 	offsetValue = strings.TrimPrefix(offsetValue, "0x")
 	offsetValue = hexRegex.ReplaceAllString(offsetValue, "")
-	offset, _ := strconv.ParseUint(offsetValue, 16, 32)
+	offset, _ := strconv.ParseUint(offsetValue, 16, 64)
+	fmt.Printf("OV %s O %08X\n", offsetValue, offset)
 	isa.Offset = uint32(offset)
 
 	if little := doc.Call("getElementById", "little").Get("checked").Bool(); little {

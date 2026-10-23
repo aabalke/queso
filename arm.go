@@ -30,13 +30,13 @@ const (
 	INST_MRS
 	INST_MSR
 	INST_HWM
+	INST_CLZ
+	INST_QAL
 	INST_ALU
 	INST_ALU_SHIFT_REG
 	INST_ALU_SHIFT_IMM
-	INST_CLZ
 	INST_CDP
 	INST_CDT
-	INST_QAL
 	INST_UNKNOWN
 )
 
@@ -121,8 +121,8 @@ var FormattersArmv5 = []Formatter{
 	INST_UND:           {0x0E00_0010, 0x0600_0010},
 	INST_MUL:           {0x0F00_00F0, 0x0000_0090},
 	INST_HWM:           {0x0F90_0090, 0x0100_0080},
-	INST_CLZ:           {0x0FFF_0F10, 0x016F_0F10},
-	INST_QAL:           {0x0100_0FF0, 0x0100_0050},
+	INST_CLZ:           {0x0FFF_0FF0, 0x016F_0F10},
+	INST_QAL:           {0x0F90_0FF0, 0x0100_0050},
 	INST_SWP:           {0x0FB0_0FF0, 0x0100_0090},
 	INST_BLK:           {0x0E00_0000, 0x0800_0000},
 	INST_HAL:           {0x0E00_0090, 0x0000_0090},
@@ -384,7 +384,7 @@ func hwm(b []byte, isa *Isa, op, addr uint32) []byte {
 	inst := (op >> 21) & 7
 
 	if inst >= 4 {
-		b = append(b, "unknown multiply instruction"...)
+		b = unknown(b, isa, op, addr)
 		return b
 	}
 
@@ -439,8 +439,13 @@ func qalu(b []byte, isa *Isa, op, addr uint32) []byte {
 	rm := isa.RegisterNaming[(op>>0)&0xF]
 	inst := (op >> 20) & 0xF
 
+	if isa.Arch.EnhancedDsp == EnhancedDspNone {
+		b = unknown(b, isa, op, addr)
+		return b
+	}
+
 	if inst >= 4 {
-		b = append(b, "unknown qalu"...)
+		b = unknown(b, isa, op, addr)
 		return b
 	}
 
@@ -733,6 +738,21 @@ var aluOpsArm = [16]string{
 	"tst", "teq", "cmp", "cmn", "orr", "mov", "bic", "mvn",
 }
 
+func isValidAlu(op uint32) bool {
+	inst := (op >> 21) & 0xF
+	logical := inst >= 8 && inst < 0xC
+	//rd := (op >> 12) & 0xF
+	rn := (op >> 16) & 0xF
+	set := op&(1<<20) != 0
+
+	// NOTE: should only use rd 0 or 15, but objdump allows others, need to look into
+	// invalidLogical := logical && ((rd != 0 && rd != 15) || !set)
+	invalidLogical := logical && !set
+	invalidMov := (inst == 0xD || inst == 0xF) && rn != 0
+
+	return !invalidLogical && !invalidMov
+}
+
 func appendAluShiftPre(b []byte, isa *Isa, op uint32) []byte {
 	sType := (op >> 5) & 3
 	shift := shifts[sType]
@@ -751,14 +771,15 @@ func appendAluShiftPre(b []byte, isa *Isa, op uint32) []byte {
 	return b
 }
 
-func appendAluPre(b []byte, isa *Isa, op uint32) []byte {
+func appendAluPre(b []byte, isa *Isa, op, _ uint32) []byte {
 	inst := (op >> 21) & 0xF
 	logical := inst >= 8 && inst < 0xC
 	rd := (op >> 12) & 0xF
 	rn := (op >> 16) & 0xF
+	set := op&(1<<20) != 0
 
 	b = append(b, aluOpsArm[inst]...)
-	if set := op&(1<<20) != 0; set && !logical {
+	if set && !logical {
 		b = append(b, "s"...)
 	}
 
@@ -784,6 +805,11 @@ func appendAluPre(b []byte, isa *Isa, op uint32) []byte {
 }
 
 func aluShiftReg(b []byte, isa *Isa, op, addr uint32) []byte {
+	if !isValidAlu(op) {
+		b = unknown(b, isa, op, addr)
+		return b
+	}
+
 	rm := isa.RegisterNaming[op&0xF]
 	rs := isa.RegisterNaming[(op>>8)&0xF]
 
@@ -796,7 +822,7 @@ func aluShiftReg(b []byte, isa *Isa, op, addr uint32) []byte {
 	} else {
 		sType := (op >> 5) & 3
 		shift := shifts[sType]
-		b = appendAluPre(b, isa, op)
+		b = appendAluPre(b, isa, op, addr)
 		b = append(b, rm...)
 		b = append(b, ", "...)
 		b = append(b, shift...)
@@ -807,6 +833,11 @@ func aluShiftReg(b []byte, isa *Isa, op, addr uint32) []byte {
 }
 
 func aluShiftImm(b []byte, isa *Isa, op, addr uint32) []byte {
+	if !isValidAlu(op) {
+		b = unknown(b, isa, op, addr)
+		return b
+	}
+
 	rm := isa.RegisterNaming[op&0xF]
 	sType := (op >> 5) & 3
 	is := (op >> 7) & 0x1F
@@ -823,7 +854,6 @@ func aluShiftImm(b []byte, isa *Isa, op, addr uint32) []byte {
 		if is == 0 {
 			switch sType {
 			case 0:
-				panic("should be possible")
 			case 1, 2:
 				b = append(b, " #32"...)
 			case 3:
@@ -837,7 +867,7 @@ func aluShiftImm(b []byte, isa *Isa, op, addr uint32) []byte {
 		return b
 	} else {
 
-		b = appendAluPre(b, isa, op)
+		b = appendAluPre(b, isa, op, addr)
 
 		b = append(b, rm...)
 
@@ -864,7 +894,12 @@ func aluShiftImm(b []byte, isa *Isa, op, addr uint32) []byte {
 }
 
 func alu(b []byte, isa *Isa, op, addr uint32) []byte {
-	b = appendAluPre(b, isa, op)
+	if !isValidAlu(op) {
+		b = unknown(b, isa, op, addr)
+		return b
+	}
+
+	b = appendAluPre(b, isa, op, addr)
 	b = append(b, "#"...)
 
 	rot := int((op>>8)&0xF) * 2

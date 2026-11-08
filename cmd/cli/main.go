@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"queso"
+	"github.com/aabalke/queso"
 )
 
 const version = "0.0.1"

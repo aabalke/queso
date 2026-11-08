@@ -1,3 +1,3 @@
-module queso
+module github.com/aabalke/queso
 
-go 1.27.0
+go 1.27.3

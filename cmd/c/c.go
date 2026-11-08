@@ -11,7 +11,7 @@ import (
 	"encoding/binary"
 	"unsafe"
 
-	"queso"
+	"github.com/aabalke/queso"
 )
 
 var archs = [...]queso.Architecture{

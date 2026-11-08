@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 
-	"queso"
+	"github.com/aabalke/queso"
 )
 
 func main() {

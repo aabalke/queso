@@ -161,7 +161,7 @@ func thumbUnknown(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 func thumbB(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	nn := int(int16((op&0x7FF)<<5)>>4) + 4
 	b = append(b, "b "...)
-	b = appendAddr(b, addr, isa.Offset, nn)
+	b = appendAddr(b, addr, nn)
 	return b
 }
 
@@ -234,7 +234,7 @@ func thumbCondB(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 	b = appendCond(b, uint32(op>>8)&0xF)
 	b = append(b, ' ')
 	nn := (int(int8(op&0xFF)) << 1) + 4
-	b = appendAddr(b, addr, isa.Offset, nn)
+	b = appendAddr(b, addr, nn)
 	return b
 }
 
@@ -594,7 +594,7 @@ func thumbCbz(b []byte, isa *Isa, op uint16, addr uint32) []byte {
 
 	b = append(b, rn...)
 	b = append(b, ", "...)
-	b = appendAddr(b, addr, isa.Offset, nn)
+	b = appendAddr(b, addr, nn)
 	return b
 }
 
@@ -709,7 +709,7 @@ func thumbBlLong(b []byte, isa *Isa, op, addr uint32) ([]byte, bool) {
 		b = append(b, "blx "...)
 	}
 
-	b = appendAddr(b, addr, isa.Offset, bl)
+	b = appendAddr(b, addr, bl)
 
 	return b, true
 }

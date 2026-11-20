@@ -293,7 +293,7 @@ func br(b []byte, isa *Isa, op, addr uint32) []byte {
 		b = append(b, ' ')
 	}
 
-	b = appendAddr(b, addr, isa.Offset, nn)
+	b = appendAddr(b, addr, nn)
 	return b
 }
 

@@ -353,3 +353,32 @@ func TestThumbBL(t *testing.T) {
 	}
 	compare(t, arch, true, ops)
 }
+
+func TestOffsetBranchTarget(t *testing.T) {
+	tests := []struct {
+		name  string
+		thumb bool
+		in    []byte
+		want  []string
+	}{
+		// b +0 ; bl +0, target = insn + 8
+		{"arm", false, []byte{0x00, 0x00, 0x00, 0xea, 0xff, 0xff, 0xff, 0xeb}, []string{"b 0x1008", "bl 0x1008"}},
+		// bge +2 ; bl +0
+		{"thumb", true, []byte{0x01, 0xda, 0x00, 0x00, 0x00, 0xf0, 0x00, 0xf8}, []string{"bge 0x1006", "", "bl 0x1008"}},
+	}
+
+	for _, tt := range tests {
+		isa := newIsa(ARMv4T, tt.thumb)
+		isa.Offset = 0x1000
+
+		got := decode(t, isa, tt.in)
+		for i, want := range tt.want {
+			if want == "" {
+				continue
+			}
+			if i >= len(got) || norm(got[i]) != want {
+				t.Errorf("%s: got %q, want %q at line %d", tt.name, got, want, i)
+			}
+		}
+	}
+}
